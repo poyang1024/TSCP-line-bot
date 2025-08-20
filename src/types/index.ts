@@ -8,8 +8,7 @@ export interface UserTempData {
   };
   prescriptionFile?: string;        // 開發環境：檔案路徑
   prescriptionFileName?: string;    // 檔案名稱
-  prescriptionBuffer?: string;      // 已棄用：舊版生產環境使用
-  prescriptionMessageId?: string;   // 生產環境：LINE messageId，讓後台下載
+  prescriptionBuffer?: string;      // 生產環境：base64 編碼的檔案內容
   selectedPharmacy?: {
     id: number;
     name: string;

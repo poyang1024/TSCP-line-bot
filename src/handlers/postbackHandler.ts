@@ -94,10 +94,10 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     return;
   }
   
-  // 檢查是否有上傳的處方籤（生產環境檢查 messageId，開發環境檢查檔案）
+  // 檢查是否有上傳的處方籤（生產環境檢查 buffer，開發環境檢查檔案）
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPrescription = isProduction 
-    ? !!userState.tempData?.prescriptionMessageId 
+    ? !!userState.tempData?.prescriptionBuffer 
     : !!userState.tempData?.prescriptionFile;
   
   console.log(`🏥 用戶狀態檢查:`, {
@@ -105,7 +105,6 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     isProduction,
     hasFile: !!userState.tempData?.prescriptionFile,
     hasBuffer: !!userState.tempData?.prescriptionBuffer,
-    hasMessageId: !!userState.tempData?.prescriptionMessageId,
     hasPrescription
   });
   
@@ -161,10 +160,10 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
   
-  // 檢查是否有處方籤資料（生產環境檢查 messageId，開發環境檢查檔案）
+  // 檢查是否有處方籤資料（生產環境檢查 buffer，開發環境檢查檔案）
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPrescription = isProduction 
-    ? !!userState.tempData?.prescriptionMessageId 
+    ? !!userState.tempData?.prescriptionBuffer 
     : !!userState.tempData?.prescriptionFile;
   
   if (!userState.accessToken || !hasPrescription) {
@@ -172,7 +171,6 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       hasToken: !!userState.accessToken,
       hasFile: !!userState.tempData?.prescriptionFile,
       hasBuffer: !!userState.tempData?.prescriptionBuffer,
-      hasMessageId: !!userState.tempData?.prescriptionMessageId,
       hasPrescription,
       isProduction,
       userState: userState
@@ -197,13 +195,23 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       formData.append('phone', '請聯繫藥局確認聯絡電話');
     }
     
+    // 準備處方籤檔案
+    let fileBuffer: Buffer;
+    
     if (isProduction) {
-      // 🚀 生產環境：直接傳送 messageId，讓後台下載圖片
-      console.log(`📤 生產環境：傳送 messageId: ${userState.tempData.prescriptionMessageId}`);
-      formData.append('prescription_message_id', userState.tempData.prescriptionMessageId!);
-      formData.append('filename', userState.tempData.prescriptionFileName || 'prescription.jpg');
+      // 生產環境：從 base64 字串還原 buffer
+      if (!userState.tempData.prescriptionBuffer) {
+        console.error('❌ 生產環境：處方籤 buffer 不存在');
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '❌ 處方籤檔案遺失，請重新上傳。'
+        });
+        return;
+      }
+      fileBuffer = Buffer.from(userState.tempData.prescriptionBuffer, 'base64');
+      console.log(`📤 生產環境：從 buffer 讀取處方籤 (${fileBuffer.length} bytes)`);
     } else {
-      // 🛠️ 開發環境：讀取檔案並上傳
+      // 開發環境：從檔案系統讀取
       if (!userState.tempData.prescriptionFile || !fs.existsSync(userState.tempData.prescriptionFile)) {
         console.error('❌ 開發環境：處方籤檔案不存在:', userState.tempData.prescriptionFile);
         await client.replyMessage(event.replyToken, {
@@ -212,17 +220,17 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         });
         return;
       }
-      
-      const fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
+      fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
       console.log(`📤 開發環境：從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
-      
-      formData.append('files[]', fileBuffer, {
-        filename: userState.tempData.prescriptionFileName || 'prescription.jpg',
-        contentType: 'image/jpeg'
-      });
     }
     
-    console.log(`📤 準備傳送訂單資料... (${isProduction ? '生產模式 (messageId)' : '開發模式 (file)'})`);
+    // 上傳處方籤檔案
+    formData.append('files[]', fileBuffer, {
+      filename: userState.tempData.prescriptionFileName || 'prescription.jpg',
+      contentType: 'image/jpeg'
+    });
+    
+    console.log(`📤 準備傳送訂單資料... (${isProduction ? '生產模式 (buffer)' : '開發模式 (file)'})`);
     
     // 建立訂單
     const order = await createOrder(userState.accessToken, formData);
