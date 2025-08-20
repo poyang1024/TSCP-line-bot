@@ -5,10 +5,14 @@ import path from 'path';
 
 export async function handleImageUpload(event: MessageEvent & { message: ImageMessage }, client: Client): Promise<void> {
   const userId = event.source.userId!;
+  console.log(`📷 [handleImageUpload] 開始處理用戶 ${userId} 的圖片上傳`);
+  
   const userState = getUserState(userId);
+  console.log(`📷 [handleImageUpload] 用戶狀態: accessToken=${!!userState.accessToken}, memberId=${userState.memberId}`);
   
   // 檢查登入狀態 - 需要檢查 accessToken 和 memberId
   if (!userState.accessToken || !userState.memberId) {
+    console.log(`📷 [handleImageUpload] 用戶未登入，發送登入提示`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 請先登入會員帳號才能上傳處方籤\n\n請使用下方選單的「中藥預約」功能進行登入。'
@@ -19,7 +23,9 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
   try {
     // 下載圖片
     const messageId = event.message.id;
+    console.log(`📷 [handleImageUpload] 開始下載圖片，messageId: ${messageId}`);
     const stream = await client.getMessageContent(messageId);
+    console.log(`📷 [handleImageUpload] 圖片下載 stream 已取得`);
     
     // 判斷是否為生產環境
     const isProduction = process.env.NODE_ENV === 'production';
@@ -37,14 +43,53 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     const filePath = path.join(uploadDir, fileName);
     
     const chunks: Buffer[] = [];
+    console.log(`📷 [handleImageUpload] 設置 stream 事件監聽器`);
+    
+    // 設置超時機制，防止 stream 處理卡住
+    let streamProcessed = false;
+    const streamTimeout = setTimeout(async () => {
+      if (!streamProcessed) {
+        console.error(`❌ [handleImageUpload] 圖片處理超時 (30秒)`);
+        streamProcessed = true; // 防止重複處理
+        try {
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: '❌ 圖片處理超時，請重新上傳。'
+          });
+          console.log(`❌ [handleImageUpload] 超時錯誤訊息已發送給用戶 ${userId}`);
+        } catch (e) {
+          console.error(`❌ [handleImageUpload] 發送超時錯誤訊息失敗:`, e);
+        }
+      }
+    }, 30000); // 30 秒超時
+    
     stream.on('data', (chunk) => {
       chunks.push(chunk);
+      console.log(`📷 [handleImageUpload] 收到 data chunk，大小: ${chunk.length}, 總 chunks: ${chunks.length}`);
     });
     
     stream.on('end', async () => {
-      console.log(`📷 開始處理上傳的圖片數據，共 ${chunks.length} 個 chunks`);
+      console.log(`📷 [handleImageUpload] stream 結束，開始處理圖片數據，共 ${chunks.length} 個 chunks`);
+      
+      // 清除超時並標記為已處理
+      clearTimeout(streamTimeout);
+      streamProcessed = true;
+      
+      if (chunks.length === 0) {
+        console.error(`❌ [handleImageUpload] 沒有收到圖片數據！`);
+        try {
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: '❌ 圖片下載失敗，請重新上傳。'
+          });
+        } catch (e) {
+          console.error(`❌ [handleImageUpload] 發送錯誤訊息失敗:`, e);
+        }
+        return;
+      }
+      
       const buffer = Buffer.concat(chunks);
-      console.log(`📷 圖片 buffer 大小: ${buffer.length} bytes`);
+      console.log(`📷 [handleImageUpload] 圖片 buffer 大小: ${buffer.length} bytes`);
       
       let replyMessageSent = false; // 標記是否已發送回復
       
@@ -136,12 +181,32 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       }
     });
     
-    stream.on('error', (error) => {
-      console.error('下載圖片錯誤:', error);
-      client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '❌ 處方籤上傳失敗，請稍後再試。'
-      });
+    stream.on('error', async (error) => {
+      console.error(`❌ [handleImageUpload] 下載圖片錯誤:`, error);
+      
+      // 清除超時並標記為已處理
+      clearTimeout(streamTimeout);
+      streamProcessed = true;
+      
+      try {
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '❌ 處方籤下載失敗，請稍後再試。'
+        });
+        console.log(`❌ [handleImageUpload] 下載錯誤訊息已發送給用戶 ${userId}`);
+      } catch (replyError) {
+        console.error(`❌ [handleImageUpload] 發送下載錯誤訊息失敗:`, replyError);
+        // 嘗試 push 訊息
+        try {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: '❌ 處方籤下載失敗，請稍後再試。'
+          });
+          console.log(`❌ [handleImageUpload] 下載錯誤訊息已透過 push 發送給用戶 ${userId}`);
+        } catch (pushError) {
+          console.error(`❌ [handleImageUpload] push 下載錯誤訊息也失敗:`, pushError);
+        }
+      }
     });
     
   } catch (error) {

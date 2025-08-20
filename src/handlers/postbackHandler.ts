@@ -94,12 +94,22 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     return;
   }
   
-  // 檢查是否有上傳的處方籤
-  if (userState.currentStep !== 'prescription_uploaded' || !userState.tempData?.prescriptionFile) {
-    console.log(`❌ 用戶狀態檢查失敗:`, {
-      currentStep: userState.currentStep,
-      hasFile: !!userState.tempData?.prescriptionFile
-    });
+  // 檢查是否有上傳的處方籤（生產環境檢查 buffer，開發環境檢查檔案）
+  const isProduction = process.env.NODE_ENV === 'production';
+  const hasPrescription = isProduction 
+    ? !!userState.tempData?.prescriptionBuffer 
+    : !!userState.tempData?.prescriptionFile;
+  
+  console.log(`🏥 用戶狀態檢查:`, {
+    currentStep: userState.currentStep,
+    isProduction,
+    hasFile: !!userState.tempData?.prescriptionFile,
+    hasBuffer: !!userState.tempData?.prescriptionBuffer,
+    hasPrescription
+  });
+  
+  if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
+    console.log(`❌ 用戶狀態檢查失敗 - 缺少處方籤資料`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '📷 請先上傳處方籤照片，然後再選擇藥局。'
@@ -150,10 +160,19 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
   
-  if (!userState.accessToken || !userState.tempData?.prescriptionFile) {
+  // 檢查是否有處方籤資料（生產環境檢查 buffer，開發環境檢查檔案）
+  const isProduction = process.env.NODE_ENV === 'production';
+  const hasPrescription = isProduction 
+    ? !!userState.tempData?.prescriptionBuffer 
+    : !!userState.tempData?.prescriptionFile;
+  
+  if (!userState.accessToken || !hasPrescription) {
     console.error('❌ 訂單資訊不完整:', {
       hasToken: !!userState.accessToken,
       hasFile: !!userState.tempData?.prescriptionFile,
+      hasBuffer: !!userState.tempData?.prescriptionBuffer,
+      hasPrescription,
+      isProduction,
       userState: userState
     });
     await client.replyMessage(event.replyToken, {
@@ -164,8 +183,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   }
   
   try {
-    // 判斷是否為生產環境
-    const isProduction = process.env.NODE_ENV === 'production';
+    // 生產環境變數已在上面定義，直接使用
     
     let fileBuffer: Buffer;
     
