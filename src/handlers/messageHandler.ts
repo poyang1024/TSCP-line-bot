@@ -113,10 +113,14 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
       }
     } else if (event.message.type === 'image') {
       // 處理圖片上傳 - 檢查是否已登入
+      console.log(`📷 收到圖片訊息，用戶登入狀態檢查: accessToken=${!!userState.accessToken}, memberId=${userState.memberId}`);
+      
       if (userState.accessToken && userState.memberId) {
+        console.log(`📷 用戶已登入，開始處理處方籤上傳`);
         await handleImageUpload(event as MessageEvent & { message: any }, client);
         return { success: true, action: 'prescription_upload' };
       } else {
+        console.log(`📷 用戶未登入，提示登入訊息`);
         await client.replyMessage(event.replyToken, {
           type: 'text',
           text: '📷 收到您的圖片！\n\n如果您想要上傳處方籤，請先使用「中藥預約」功能並登入會員。'

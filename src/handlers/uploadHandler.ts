@@ -42,7 +42,11 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     });
     
     stream.on('end', async () => {
+      console.log(`📷 開始處理上傳的圖片數據，共 ${chunks.length} 個 chunks`);
       const buffer = Buffer.concat(chunks);
+      console.log(`📷 圖片 buffer 大小: ${buffer.length} bytes`);
+      
+      let replyMessageSent = false; // 標記是否已發送回復
       
       try {
         // 在生產環境中，也嘗試保存到 /tmp，但主要依賴 buffer
@@ -74,34 +78,61 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         const memberName = currentUserState.tempData?.memberInfo?.memberName || currentUserState.memberName || '';
         const greeting = memberName ? `${memberName}，` : '';
         
+        console.log(`📷 準備發送回復訊息給用戶 ${userId}, greeting: "${greeting}"`);
+        
         // 提示選擇藥局
-        await client.replyMessage(event.replyToken, {
-          type: 'template',
+        const replyMessage = {
+          type: 'template' as const,
           altText: '處方籤上傳成功',
           template: {
-            type: 'buttons',
+            type: 'buttons' as const,
             title: '📷 處方籤上傳成功！',
             text: `${greeting}請選擇要配藥的藥局：`,
             actions: [
               {
-                type: 'message',
+                type: 'message' as const,
                 label: '🔍 搜尋藥局',
                 text: '搜尋藥局'
               },
               {
-                type: 'postback',
+                type: 'postback' as const,
                 label: '📋 查看我的訂單',
                 data: 'action=view_orders'
               }
             ]
           }
-        });
+        };
+        
+        await client.replyMessage(event.replyToken, replyMessage);
+        replyMessageSent = true;
+        console.log(`✅ 回復訊息已成功發送給用戶 ${userId}`);
+        
       } catch (saveError) {
-        console.error('📷 儲存處方籤失敗:', saveError);
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: '❌ 處方籤上傳失敗，請稍後再試。'
-        });
+        console.error('📷 處理處方籤過程中發生錯誤:', saveError);
+        console.error('錯誤詳細資訊:', saveError?.stack);
+        
+        // 如果還沒發送回復，發送錯誤訊息
+        if (!replyMessageSent) {
+          try {
+            await client.replyMessage(event.replyToken, {
+              type: 'text',
+              text: '❌ 處方籤上傳失敗，請稍後再試。'
+            });
+            console.log(`❌ 錯誤回復訊息已發送給用戶 ${userId}`);
+          } catch (replyError) {
+            console.error('❌ 發送錯誤回復訊息也失敗:', replyError);
+            // 嘗試用 push 訊息作為備案
+            try {
+              await client.pushMessage(userId, {
+                type: 'text',
+                text: '❌ 處方籤上傳失敗，請稍後再試。'
+              });
+              console.log(`❌ 錯誤訊息已透過 push 發送給用戶 ${userId}`);
+            } catch (pushError) {
+              console.error('❌ push 訊息也失敗:', pushError);
+            }
+          }
+        }
       }
     });
     
