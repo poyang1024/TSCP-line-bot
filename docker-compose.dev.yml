@@ -1,0 +1,28 @@
+services:
+  line-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # 掛載源碼目錄以支援熱重載
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+      # 避免掛載 node_modules（使用 anonymous volume）
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command:
+      - "http"
+      - "line-bot:3000"
+    ports:
+      - "4040:4040"  # ngrok web interface
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
