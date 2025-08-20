@@ -1,3 +1,22 @@
+// 用戶暫存資料
+export interface UserTempData {
+  waitingFor?: string;
+  memberInfo?: {
+    memberId: number;
+    memberName: string;
+    accessToken: string;
+  };
+  prescriptionFile?: string;        // 開發環境：檔案路徑
+  prescriptionFileName?: string;    // 檔案名稱
+  prescriptionBuffer?: string;      // 生產環境：base64 編碼的檔案內容
+  selectedPharmacy?: {
+    id: number;
+    name: string;
+  };
+  isDelivery?: boolean;
+  [key: string]: any;              // 保持彈性
+}
+
 // 用戶狀態
 export interface UserState {
   userId: string;
@@ -6,7 +25,7 @@ export interface UserState {
   accessToken?: string;
   currentStep?: string;
   loginMethod?: 'account' | 'line';
-  tempData?: any;
+  tempData?: UserTempData;
 }
 
 // 會員資料

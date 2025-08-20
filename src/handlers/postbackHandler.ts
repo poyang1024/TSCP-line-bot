@@ -164,14 +164,35 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   }
   
   try {
-    // 檢查檔案是否存在
-    if (!fs.existsSync(userState.tempData.prescriptionFile)) {
-      console.error('❌ 處方籤檔案不存在:', userState.tempData.prescriptionFile);
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '❌ 處方籤檔案遺失，請重新上傳。'
-      });
-      return;
+    // 判斷是否為生產環境
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    let fileBuffer: Buffer;
+    
+    if (isProduction) {
+      // 生產環境：從 base64 字串還原 buffer
+      if (!userState.tempData.prescriptionBuffer) {
+        console.error('❌ 生產環境：處方籤 buffer 不存在');
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '❌ 處方籤檔案遺失，請重新上傳。'
+        });
+        return;
+      }
+      fileBuffer = Buffer.from(userState.tempData.prescriptionBuffer, 'base64');
+      console.log(`📤 生產環境：從 buffer 讀取處方籤 (${fileBuffer.length} bytes)`);
+    } else {
+      // 開發環境：從檔案系統讀取
+      if (!userState.tempData.prescriptionFile || !fs.existsSync(userState.tempData.prescriptionFile)) {
+        console.error('❌ 開發環境：處方籤檔案不存在:', userState.tempData.prescriptionFile);
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '❌ 處方籤檔案遺失，請重新上傳。'
+        });
+        return;
+      }
+      fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
+      console.log(`📤 開發環境：從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
     }
     
     // 準備訂單資料
@@ -187,13 +208,12 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     }
     
     // 上傳處方籤檔案
-    const fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
     formData.append('files[]', fileBuffer, {
       filename: userState.tempData.prescriptionFileName || 'prescription.jpg',
       contentType: 'image/jpeg'
     });
     
-    console.log('📤 準備傳送訂單資料...');
+    console.log(`📤 準備傳送訂單資料... (${isProduction ? '生產模式' : '開發模式'})`);
     
     // 建立訂單
     const order = await createOrder(userState.accessToken, formData);
