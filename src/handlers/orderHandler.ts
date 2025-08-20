@@ -32,7 +32,7 @@ export async function handleOrderInquiry(event: MessageEvent, client: Client): P
     }
     
     // 顯示最近的3筆訂單 (確保不超過 LINE 的訊息限制)
-    const recentOrders = orders.slice(0, 3);
+    const recentOrders = orders.slice(orders.length-4, orders.length-1);
     console.log(`📋 準備顯示 ${recentOrders.length} 筆訂單`);
     
     try {
