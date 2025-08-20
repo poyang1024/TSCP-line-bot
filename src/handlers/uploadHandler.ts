@@ -20,6 +20,10 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     return;
   }
   
+  // 設置全局備用超時機制變數
+  let processCompleted = false;
+  let globalTimeout: NodeJS.Timeout;
+  
   try {
     // 立即回覆確認訊息，讓用戶知道已收到圖片
     await client.replyMessage(event.replyToken, {
@@ -28,11 +32,41 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     });
     console.log(`📷 [handleImageUpload] 已發送處理中確認訊息給用戶 ${userId}`);
     
+    // 設置全局備用超時機制 (2分鐘)，確保用戶一定會收到回復
+    globalTimeout = setTimeout(async () => {
+      if (!processCompleted) {
+        console.error(`❌ [handleImageUpload] 處理流程超時 (2分鐘)，發送備用訊息`);
+        processCompleted = true;
+        try {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: '❌ 處方籤處理超時，請重新上傳。如問題持續發生，請聯絡客服。'
+          });
+          console.log(`❌ [handleImageUpload] 備用超時訊息已推送給用戶 ${userId}`);
+        } catch (e) {
+          console.error(`❌ [handleImageUpload] 推送備用超時訊息失敗:`, e);
+        }
+      }
+    }, 120000); // 2分鐘超時
+    
     // 下載圖片
     const messageId = event.message.id;
     console.log(`📷 [handleImageUpload] 開始下載圖片，messageId: ${messageId}`);
-    const stream = await client.getMessageContent(messageId);
-    console.log(`📷 [handleImageUpload] 圖片下載 stream 已取得`);
+    
+    let stream;
+    try {
+      stream = await client.getMessageContent(messageId);
+      console.log(`📷 [handleImageUpload] 圖片下載 stream 已取得`);
+    } catch (downloadError) {
+      console.error(`❌ [handleImageUpload] 下載圖片失敗:`, downloadError);
+      clearTimeout(globalTimeout);
+      processCompleted = true;
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: '❌ 圖片下載失敗，請重新上傳。'
+      });
+      return;
+    }
     
     // 判斷是否為生產環境
     const isProduction = process.env.NODE_ENV === 'production';
@@ -55,9 +89,11 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     // 設置超時機制，防止 stream 處理卡住
     let streamProcessed = false;
     const streamTimeout = setTimeout(async () => {
-      if (!streamProcessed) {
+      if (!streamProcessed && !processCompleted) {
         console.error(`❌ [handleImageUpload] 圖片處理超時 (30秒)`);
         streamProcessed = true; // 防止重複處理
+        processCompleted = true;
+        clearTimeout(globalTimeout); // 清除全局超時
         try {
           await client.pushMessage(userId, {
             type: 'text',
@@ -84,6 +120,10 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       
       if (chunks.length === 0) {
         console.error(`❌ [handleImageUpload] 沒有收到圖片數據！`);
+        clearTimeout(streamTimeout);
+        clearTimeout(globalTimeout);
+        streamProcessed = true;
+        processCompleted = true;
         try {
           await client.pushMessage(userId, {
             type: 'text',
@@ -157,6 +197,8 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         };
         
         await client.pushMessage(userId, pharmacySelectionMessage);
+        clearTimeout(globalTimeout);
+        processCompleted = true;
         console.log(`✅ 處方籤處理完成訊息已成功推送給用戶 ${userId}`);
         
       } catch (saveError) {
@@ -164,6 +206,8 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         console.error('錯誤詳細資訊:', saveError?.stack);
         
         // 發送錯誤訊息（使用 pushMessage，因為 replyMessage 已經用過）
+        clearTimeout(globalTimeout);
+        processCompleted = true;
         try {
           await client.pushMessage(userId, {
             type: 'text',
@@ -179,9 +223,11 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     stream.on('error', async (error) => {
       console.error(`❌ [handleImageUpload] 下載圖片錯誤:`, error);
       
-      // 清除超時並標記為已處理
+      // 清除所有超時並標記為已處理
       clearTimeout(streamTimeout);
+      clearTimeout(globalTimeout);
       streamProcessed = true;
+      processCompleted = true;
       
       try {
         await client.pushMessage(userId, {
@@ -196,6 +242,10 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     
   } catch (error) {
     console.error(`❌ [handleImageUpload] 處理圖片上傳發生致命錯誤:`, error);
+    
+    // 清除全局超時
+    clearTimeout(globalTimeout);
+    processCompleted = true;
     
     // 嘗試發送錯誤訊息，優先使用 replyMessage（如果還沒用過）
     try {
