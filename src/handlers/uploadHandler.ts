@@ -21,6 +21,13 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
   }
   
   try {
+    // 立即回覆確認訊息，讓用戶知道已收到圖片
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '📷 已收到您的處方籤\n\n⏳ 正在處理中，請稍候...'
+    });
+    console.log(`📷 [handleImageUpload] 已發送處理中確認訊息給用戶 ${userId}`);
+    
     // 下載圖片
     const messageId = event.message.id;
     console.log(`📷 [handleImageUpload] 開始下載圖片，messageId: ${messageId}`);
@@ -52,13 +59,13 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         console.error(`❌ [handleImageUpload] 圖片處理超時 (30秒)`);
         streamProcessed = true; // 防止重複處理
         try {
-          await client.replyMessage(event.replyToken, {
+          await client.pushMessage(userId, {
             type: 'text',
             text: '❌ 圖片處理超時，請重新上傳。'
           });
-          console.log(`❌ [handleImageUpload] 超時錯誤訊息已發送給用戶 ${userId}`);
+          console.log(`❌ [handleImageUpload] 超時錯誤訊息已推送給用戶 ${userId}`);
         } catch (e) {
-          console.error(`❌ [handleImageUpload] 發送超時錯誤訊息失敗:`, e);
+          console.error(`❌ [handleImageUpload] 推送超時錯誤訊息失敗:`, e);
         }
       }
     }, 30000); // 30 秒超時
@@ -78,12 +85,13 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       if (chunks.length === 0) {
         console.error(`❌ [handleImageUpload] 沒有收到圖片數據！`);
         try {
-          await client.replyMessage(event.replyToken, {
+          await client.pushMessage(userId, {
             type: 'text',
             text: '❌ 圖片下載失敗，請重新上傳。'
           });
+          console.log(`❌ [handleImageUpload] 無數據錯誤訊息已推送給用戶 ${userId}`);
         } catch (e) {
-          console.error(`❌ [handleImageUpload] 發送錯誤訊息失敗:`, e);
+          console.error(`❌ [handleImageUpload] 推送無數據錯誤訊息失敗:`, e);
         }
         return;
       }
@@ -91,7 +99,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       const buffer = Buffer.concat(chunks);
       console.log(`📷 [handleImageUpload] 圖片 buffer 大小: ${buffer.length} bytes`);
       
-      let replyMessageSent = false; // 標記是否已發送回復
+      // 處理圖片並更新用戶狀態
       
       try {
         // 在生產環境中，也嘗試保存到 /tmp，但主要依賴 buffer
@@ -125,8 +133,8 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         
         console.log(`📷 準備發送回復訊息給用戶 ${userId}, greeting: "${greeting}"`);
         
-        // 提示選擇藥局
-        const replyMessage = {
+        // 提示選擇藥局（使用 pushMessage，因為 replyMessage 已經用過）
+        const pharmacySelectionMessage = {
           type: 'template' as const,
           altText: '處方籤上傳成功',
           template: {
@@ -148,35 +156,22 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
           }
         };
         
-        await client.replyMessage(event.replyToken, replyMessage);
-        replyMessageSent = true;
-        console.log(`✅ 回復訊息已成功發送給用戶 ${userId}`);
+        await client.pushMessage(userId, pharmacySelectionMessage);
+        console.log(`✅ 處方籤處理完成訊息已成功推送給用戶 ${userId}`);
         
       } catch (saveError) {
         console.error('📷 處理處方籤過程中發生錯誤:', saveError);
         console.error('錯誤詳細資訊:', saveError?.stack);
         
-        // 如果還沒發送回復，發送錯誤訊息
-        if (!replyMessageSent) {
-          try {
-            await client.replyMessage(event.replyToken, {
-              type: 'text',
-              text: '❌ 處方籤上傳失敗，請稍後再試。'
-            });
-            console.log(`❌ 錯誤回復訊息已發送給用戶 ${userId}`);
-          } catch (replyError) {
-            console.error('❌ 發送錯誤回復訊息也失敗:', replyError);
-            // 嘗試用 push 訊息作為備案
-            try {
-              await client.pushMessage(userId, {
-                type: 'text',
-                text: '❌ 處方籤上傳失敗，請稍後再試。'
-              });
-              console.log(`❌ 錯誤訊息已透過 push 發送給用戶 ${userId}`);
-            } catch (pushError) {
-              console.error('❌ push 訊息也失敗:', pushError);
-            }
-          }
+        // 發送錯誤訊息（使用 pushMessage，因為 replyMessage 已經用過）
+        try {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: '❌ 處方籤處理失敗，請重新上傳。'
+          });
+          console.log(`❌ 錯誤訊息已推送給用戶 ${userId}`);
+        } catch (pushError) {
+          console.error('❌ 推送錯誤訊息失敗:', pushError);
         }
       }
     });
@@ -189,31 +184,38 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       streamProcessed = true;
       
       try {
-        await client.replyMessage(event.replyToken, {
+        await client.pushMessage(userId, {
           type: 'text',
           text: '❌ 處方籤下載失敗，請稍後再試。'
         });
-        console.log(`❌ [handleImageUpload] 下載錯誤訊息已發送給用戶 ${userId}`);
-      } catch (replyError) {
-        console.error(`❌ [handleImageUpload] 發送下載錯誤訊息失敗:`, replyError);
-        // 嘗試 push 訊息
-        try {
-          await client.pushMessage(userId, {
-            type: 'text',
-            text: '❌ 處方籤下載失敗，請稍後再試。'
-          });
-          console.log(`❌ [handleImageUpload] 下載錯誤訊息已透過 push 發送給用戶 ${userId}`);
-        } catch (pushError) {
-          console.error(`❌ [handleImageUpload] push 下載錯誤訊息也失敗:`, pushError);
-        }
+        console.log(`❌ [handleImageUpload] 下載錯誤訊息已推送給用戶 ${userId}`);
+      } catch (pushError) {
+        console.error(`❌ [handleImageUpload] 推送下載錯誤訊息失敗:`, pushError);
       }
     });
     
   } catch (error) {
-    console.error('處理圖片上傳錯誤:', error);
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '❌ 處方籤上傳失敗，請稍後再試。'
-    });
+    console.error(`❌ [handleImageUpload] 處理圖片上傳發生致命錯誤:`, error);
+    
+    // 嘗試發送錯誤訊息，優先使用 replyMessage（如果還沒用過）
+    try {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 處方籤上傳失敗，請稍後再試。'
+      });
+      console.log(`❌ [handleImageUpload] 致命錯誤訊息已回覆給用戶 ${userId}`);
+    } catch (replyError) {
+      console.error(`❌ [handleImageUpload] 回覆致命錯誤訊息失敗，嘗試推送:`, replyError);
+      // 如果 replyMessage 失敗，改用 pushMessage
+      try {
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: '❌ 處方籤上傳失敗，請稍後再試。'
+        });
+        console.log(`❌ [handleImageUpload] 致命錯誤訊息已推送給用戶 ${userId}`);
+      } catch (pushError) {
+        console.error(`❌ [handleImageUpload] 推送致命錯誤訊息也失敗:`, pushError);
+      }
+    }
   }
 }
