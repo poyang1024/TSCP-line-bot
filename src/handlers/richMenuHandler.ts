@@ -222,6 +222,15 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
           },
           {
             type: 'button',
+            action: {
+              type: 'uri',
+              label: '🔐 修改密碼',
+              uri: `${process.env.NODE_ENV === 'production' ? 'https://tscp-line-bot.vercel.app' : `http://localhost:${process.env.PORT || 3000}`}/login?userId=${userId}&action=password`
+            },
+            style: 'link'
+          },
+          {
+            type: 'button',
             style: 'secondary',
             action: {
               type: 'postback',
