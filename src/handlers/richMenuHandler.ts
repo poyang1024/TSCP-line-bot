@@ -1,6 +1,6 @@
 import { PostbackEvent, Client, FlexMessage } from '@line/bot-sdk'
 import { verifyUserToken, refreshUserToken } from '../services/jwtService'
-import { getUserState, updateUserTempData } from '../services/userService'
+import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
 import { updateUserRichMenu } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId } from '../services/websocketService'
@@ -47,6 +47,10 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
       
     case 'logout':
       await handleLogout(event, client, userId)
+      break
+      
+    case 'change_password_local':
+      await handleChangePasswordLocal(event, client, userId)
       break
       
     default:
@@ -222,10 +226,14 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
           },
           {
             type: 'button',
-            action: {
+            action: process.env.NODE_ENV === 'production' ? {
               type: 'uri',
               label: '🔐 修改密碼',
-              uri: `${process.env.NODE_ENV === 'production' ? 'https://tscp-line-bot.vercel.app' : `http://localhost:${process.env.PORT || 3000}`}/login?userId=${userId}&action=password`
+              uri: `https://tscp-line-bot.vercel.app/login?userId=${userId}&action=password`
+            } : {
+              type: 'postback',
+              label: '🔐 修改密碼',
+              data: 'action=change_password_local'
             },
             style: 'link'
           },
@@ -422,5 +430,37 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
   await client.replyMessage(event.replyToken, {
     type: 'text',
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳處方籤圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的處方籤圖片開始預約！`
+  })
+}
+
+// 處理本地密碼修改 (開發環境)
+async function handleChangePasswordLocal(event: PostbackEvent, client: Client, userId: string): Promise<void> {
+  const userState = getUserState(userId)
+  
+  // 檢查用戶是否已登入
+  if (!userState.accessToken || !userState.memberId) {
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n請使用下方選單中的「中藥預約」功能重新登入。'
+    })
+    return
+  }
+  
+  // 設定用戶狀態為等待輸入舊密碼
+  updateUserState(userId, {
+    currentStep: 'waiting_old_password',
+    tempData: { 
+      action: 'change_password',
+      memberInfo: {
+        memberId: userState.memberId,
+        accessToken: userState.accessToken,
+        memberName: userState.memberName
+      }
+    }
+  })
+  
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '🔐 修改密碼\n\n請輸入您的舊密碼：'
   })
 }
