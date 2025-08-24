@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production'
-const JWT_EXPIRES_IN = '30m' // 30分鐘過期
+const JWT_EXPIRES_IN = '7d' // 7天過期
 
 export interface UserSession {
   lineId: string
