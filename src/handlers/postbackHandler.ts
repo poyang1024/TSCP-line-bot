@@ -106,17 +106,15 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     return;
   }
   
-  // 檢查是否有上傳的處方籤（生產環境檢查 buffer，開發環境檢查檔案）
+  // 檢查是否有上傳的處方籤（統一使用檔案路徑檢查）
   const isProduction = process.env.NODE_ENV === 'production';
-  const hasPrescription = isProduction 
-    ? !!userState.tempData?.prescriptionBuffer 
-    : !!userState.tempData?.prescriptionFile;
+  const hasPrescription = !!userState.tempData?.prescriptionFile;
   
   console.log(`🏥 用戶狀態檢查:`, {
     currentStep: userState.currentStep,
     isProduction,
     hasFile: !!userState.tempData?.prescriptionFile,
-    hasBuffer: !!userState.tempData?.prescriptionBuffer,
+    fileName: userState.tempData?.prescriptionFileName,
     hasPrescription
   });
   
@@ -172,17 +170,15 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
   
-  // 檢查是否有處方籤資料（生產環境檢查 buffer，開發環境檢查檔案）
+  // 檢查是否有處方籤資料（統一使用檔案路徑檢查）
   const isProduction = process.env.NODE_ENV === 'production';
-  const hasPrescription = isProduction 
-    ? !!userState.tempData?.prescriptionBuffer 
-    : !!userState.tempData?.prescriptionFile;
+  const hasPrescription = !!userState.tempData?.prescriptionFile;
   
   if (!userState.accessToken || !hasPrescription) {
     console.error('❌ 訂單資訊不完整:', {
       hasToken: !!userState.accessToken,
       hasFile: !!userState.tempData?.prescriptionFile,
-      hasBuffer: !!userState.tempData?.prescriptionBuffer,
+      fileName: userState.tempData?.prescriptionFileName,
       hasPrescription,
       isProduction,
       userState: userState
