@@ -1,7 +1,7 @@
 import { MessageEvent, PostbackEvent, Client, TextMessage, FlexMessage } from '@line/bot-sdk';
 import { getUserState, updateUserState, updateUserTempData } from '../services/userService';
-import { loginMember } from '../services/apiService';
-import { connectUserWebSocket } from '../services/websocketService';
+import { loginMember, changePassword } from '../services/apiService';
+import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { createMainMenu } from '../templates/messageTemplates';
 import { createUserToken } from '../services/jwtService';
 import { updateUserRichMenu } from '../services/menuManager';
@@ -157,16 +157,7 @@ export function createLoginMenu(userId: string): FlexMessage {
               type: 'separator',
               margin: 'lg'
             },
-            {
-              type: 'button',
-              action: {
-                type: 'uri',
-                label: '🌐 網頁登入 (測試)',
-                uri: `${baseUrl}/login?userId=${userId}&action=login`
-              },
-              style: 'link',
-              margin: 'md'
-            }
+
           ],
           spacing: 'sm',
           paddingAll: 'lg'
@@ -177,7 +168,7 @@ export function createLoginMenu(userId: string): FlexMessage {
           contents: [
             {
               type: 'text',
-              text: '開發環境：支援兩種登入方式',
+              text: '開發環境：訊息登入模式',
               size: 'xs',
               color: '#aaaaaa',
               align: 'center'
@@ -355,5 +346,146 @@ async function performLogin(
         console.error('❌ 推送錯誤訊息也失敗:', pushError);
       }
     }
+  }
+}
+
+// 處理修改密碼流程 (開發環境)
+export async function handlePasswordChange(event: MessageEvent, client: Client): Promise<void> {
+  const userId = event.source.userId!;
+  const userState = getUserState(userId);
+  const message = event.message as TextMessage;
+  const text = message.text.trim();
+  
+  if (userState.currentStep === 'waiting_old_password') {
+    // 儲存舊密碼，要求新密碼
+    updateUserState(userId, {
+      currentStep: 'waiting_new_password',
+      tempData: { 
+        ...userState.tempData,
+        old_password: text 
+      }
+    });
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '🔐 請輸入您的新密碼：\n\n⚠️ 密碼長度須為 1-20 字元'
+    });
+    
+  } else if (userState.currentStep === 'waiting_new_password') {
+    // 驗證新密碼長度
+    if (text.length < 1 || text.length > 20) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 新密碼長度必須為 1-20 字元，請重新輸入：'
+      });
+      return;
+    }
+    
+    // 儲存新密碼，要求確認密碼
+    updateUserState(userId, {
+      currentStep: 'waiting_confirm_password',
+      tempData: { 
+        ...userState.tempData,
+        new_password: text 
+      }
+    });
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '🔐 請再次輸入新密碼以確認：'
+    });
+    
+  } else if (userState.currentStep === 'waiting_confirm_password') {
+    const oldPassword = userState.tempData?.old_password;
+    const newPassword = userState.tempData?.new_password;
+    const memberInfo = userState.tempData?.memberInfo;
+    
+    // 驗證密碼確認
+    if (text !== newPassword) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 兩次輸入的新密碼不一致，請重新輸入確認密碼：'
+      });
+      return;
+    }
+    
+    if (!oldPassword || !newPassword || !memberInfo?.accessToken) {
+      updateUserState(userId, { currentStep: undefined, tempData: undefined });
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 修改密碼流程發生錯誤，請重新開始。'
+      });
+      return;
+    }
+    
+    // 執行密碼修改
+    await performPasswordChange(userId, memberInfo.accessToken, oldPassword, newPassword, event, client);
+  }
+}
+
+// 執行密碼修改邏輯
+async function performPasswordChange(
+  userId: string,
+  accessToken: string,
+  oldPassword: string,
+  newPassword: string,
+  event: MessageEvent,
+  client: Client
+): Promise<void> {
+  try {
+    // 呼叫變更密碼 API
+    const result = await changePassword(accessToken, oldPassword, newPassword);
+    
+    if (result.success) {
+      // 取得用戶狀態中的 memberId
+      const userState = getUserState(userId);
+      const memberId = userState.memberId;
+      
+      // 自動登出：清除用戶狀態
+      updateUserState(userId, {
+        currentStep: undefined,
+        tempData: undefined,
+        memberId: undefined,
+        accessToken: undefined,
+        memberName: undefined
+      });
+      
+      // 斷開 WebSocket 連線
+      if (memberId) {
+        disconnectUserWebSocket(memberId);
+      }
+      
+      // 切換回訪客選單
+      try {
+        await updateUserRichMenu(client, userId, false);
+        console.log(`✅ Rich Menu 已切換為訪客模式 - ${userId}`);
+      } catch (menuError) {
+        console.error(`⚠️ Rich Menu 切換失敗:`, menuError);
+      }
+      
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '🎉 密碼修改成功！\n\n為了安全考量，系統已自動登出\n\n✅ 請使用新密碼重新登入\n✅ 選單已切換為訪客模式'
+      });
+      
+    } else {
+      // 密碼修改失敗，清除流程
+      updateUserState(userId, { currentStep: undefined, tempData: undefined });
+      
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: `❌ 密碼修改失敗：${result.message || '請檢查舊密碼是否正確'}\n\n如需重新修改，請使用會員中心功能。`
+      });
+    }
+  } catch (error) {
+    console.error('修改密碼錯誤:', error);
+    
+    // 重置用戶狀態
+    updateUserState(userId, { currentStep: undefined, tempData: undefined });
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '❌ 系統錯誤，請稍後再試。\n\n如果問題持續發生，請聯絡客服。'
+    });
   }
 }

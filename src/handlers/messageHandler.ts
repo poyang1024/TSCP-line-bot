@@ -1,6 +1,6 @@
 import { MessageEvent, Client, TextMessage, ImageMessage } from '@line/bot-sdk';
 import { getUserState, updateUserState, updateUserTempData, clearUserTempData, clearUserState } from '../services/userService';
-import { handleLogin, createLoginMenu } from './loginHandler';
+import { handleLogin, createLoginMenu, handlePasswordChange } from './loginHandler';
 import { handleImageUpload } from './uploadHandler';
 import { handlePharmacySearch } from './pharmacyHandler';
 import { handleOrderInquiry } from './orderHandler';
@@ -11,6 +11,18 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
   const userState = getUserState(userId);
   
   try {
+    // 檢查是否正在處理圖片，如果是則阻止其他操作
+    if (userState.currentStep === 'processing_image') {
+      const processingTime = Date.now() - (userState.tempData?.processingStartTime || 0);
+      const processingMinutes = Math.floor(processingTime / 60000);
+      
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: `⏳ 正在處理您上傳的處方籤${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿進行其他操作。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳處方籤。`
+      });
+      return { success: true, action: 'blocked_during_processing' };
+    }
+    
     // 確保用戶有正確的選單（根據登入狀態）
     const isLoggedIn = !!(userState.accessToken && userState.memberId);
     console.log(`🎨 設置富選單: userId=${userId}, isLoggedIn=${isLoggedIn}, accessToken=${!!userState.accessToken}, memberId=${userState.memberId}`);
@@ -24,6 +36,12 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
       if (userState.currentStep === 'waiting_account' || userState.currentStep === 'waiting_password') {
         await handleLogin(event, client);
         return { success: true, action: 'login_process' };
+      }
+      
+      // 檢查是否為修改密碼流程中的步驟 (開發環境)
+      if (userState.currentStep === 'waiting_old_password' || userState.currentStep === 'waiting_new_password' || userState.currentStep === 'waiting_confirm_password') {
+        await handlePasswordChange(event, client);
+        return { success: true, action: 'password_change_process' };
       }
       
       // 主要功能選單
