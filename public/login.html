@@ -385,7 +385,6 @@
                 
                 if (result.success) {
                     showAlert('登入成功！請關閉此視窗回到 LINE', 'success');
-                    showCloseButton();
                 } else {
                     showAlert(result.message || '登入失敗，請檢查帳號密碼', 'error');
                 }
@@ -429,7 +428,6 @@
                 
                 if (result.success) {
                     showAlert('註冊成功！預設密碼為您的手機號碼，請關閉此視窗回到 LINE', 'success');
-                    showCloseButton();
                 } else {
                     showAlert(result.message || '註冊失敗，請稍後再試', 'error');
                 }
@@ -476,7 +474,6 @@
                 
                 if (result.success) {
                     showAlert('密碼修改成功！系統已自動登出，請關閉此視窗回到 LINE', 'success');
-                    showCloseButton();
                 } else {
                     showAlert(result.message || '密碼修改失敗', 'error');
                 }
@@ -507,7 +504,6 @@
                 
                 if (result.success) {
                     showAlert('帳號刪除成功！請關閉此視窗回到 LINE', 'success');
-                    showCloseButton();
                 } else {
                     showAlert(result.message || '帳號刪除失敗', 'error');
                 }
@@ -517,48 +513,12 @@
             }
         }
         
-        // 顯示關閉按鈕
-        function showCloseButton() {
-            const container = document.querySelector('.container');
-            
-            // 移除現有的關閉按鈕（避免重複）
-            const existingCloseBtn = document.getElementById('close-window-btn');
-            if (existingCloseBtn) {
-                existingCloseBtn.remove();
-            }
-            
-            // 創建關閉按鈕
-            const closeBtn = document.createElement('button');
-            closeBtn.id = 'close-window-btn';
-            closeBtn.textContent = '關閉此視窗';
-            closeBtn.className = 'submit-btn';
-            closeBtn.style.marginTop = '20px';
-            closeBtn.style.background = '#28a745';
-            closeBtn.onclick = function() {
-                if (window.liff) {
-                    window.liff.closeWindow();
-                } else {
-                    window.close();
-                }
-            };
-            
-            // 添加到容器末尾
-            container.appendChild(closeBtn);
-            
-            // 隱藏原本的返回 LINE 連結
-            const backToLineLink = document.querySelector('.back-to-line');
-            if (backToLineLink) {
-                backToLineLink.style.display = 'none';
-            }
-        }
-        
-        // 返回 LINE（保留給手動點擊使用）
+        // 返回 LINE
         function backToLine() {
             if (window.liff) {
                 window.liff.closeWindow();
             } else {
-                // 顯示提示而非直接關閉
-                alert('請手動關閉此視窗回到 LINE 應用程式');
+                window.close();
             }
         }
         
