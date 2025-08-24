@@ -134,3 +134,85 @@ export async function createOrder(token: string, orderData: any): Promise<Order 
     return null;
   }
 }
+
+// 會員註冊
+export async function registerMember(phone: string, identity: string, name: string, address?: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await api.post('/register/phone', {
+      phone,
+      identity,
+      name,
+      address: address || ''
+    });
+    
+    if (response.data.success) {
+      return { success: true };
+    }
+    return { 
+      success: false, 
+      message: response.data.message || '註冊失敗' 
+    };
+  } catch (error) {
+    console.error('註冊失敗:', error);
+    if (axios.isAxiosError(error)) {
+      const errorMessage = error.response?.data?.message || '註冊失敗，請稍後再試';
+      return { success: false, message: errorMessage };
+    }
+    return { success: false, message: '註冊失敗，請稍後再試' };
+  }
+}
+
+// 變更密碼
+export async function changePassword(token: string, oldPassword: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await api.patch('/personal/password', {
+      old_password: oldPassword,
+      new_password: newPassword
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.data.success) {
+      return { success: true };
+    }
+    return { 
+      success: false, 
+      message: response.data.message || '密碼變更失敗' 
+    };
+  } catch (error) {
+    console.error('變更密碼失敗:', error);
+    if (axios.isAxiosError(error)) {
+      const errorMessage = error.response?.data?.message || '密碼變更失敗，請稍後再試';
+      return { success: false, message: errorMessage };
+    }
+    return { success: false, message: '密碼變更失敗，請稍後再試' };
+  }
+}
+
+// 刪除帳號
+export async function deleteAccount(token: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const response = await api.delete('/personal/password', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.data.success) {
+      return { success: true };
+    }
+    return { 
+      success: false, 
+      message: response.data.message || '帳號刪除失敗' 
+    };
+  } catch (error) {
+    console.error('刪除帳號失敗:', error);
+    if (axios.isAxiosError(error)) {
+      const errorMessage = error.response?.data?.message || '帳號刪除失敗，請稍後再試';
+      return { success: false, message: errorMessage };
+    }
+    return { success: false, message: '帳號刪除失敗，請稍後再試' };
+  }
+}

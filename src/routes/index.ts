@@ -2,6 +2,12 @@ import express from 'express';
 import { Client } from '@line/bot-sdk';
 import multer from 'multer';
 import path from 'path';
+import { 
+  handleWebLogin, 
+  handleWebRegister, 
+  handleWebChangePassword, 
+  handleWebDeleteAccount 
+} from '../handlers/webAuthHandler';
 
 // 設定檔案上傳
 const storage = multer.diskStorage({
@@ -46,9 +52,35 @@ export function setupRoutes(app: express.Application, client: Client): void {
       version: '1.0.0',
       endpoints: {
         webhook: '/webhook',
-        health: '/health'
+        health: '/health',
+        login: '/login'
       }
     });
+  });
+  
+  // 網頁登入頁面
+  app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../public/login.html'));
+  });
+  
+  // 網頁登入 API
+  app.post('/api/web-login', (req, res) => {
+    handleWebLogin(req, res, client);
+  });
+  
+  // 註冊 API  
+  app.post('/api/register', (req, res) => {
+    handleWebRegister(req, res, client);
+  });
+  
+  // 變更密碼 API
+  app.patch('/api/change-password', (req, res) => {
+    handleWebChangePassword(req, res, client);
+  });
+  
+  // 刪除帳號 API
+  app.delete('/api/delete-account', (req, res) => {
+    handleWebDeleteAccount(req, res, client);
   });
   
   // 檔案上傳 API（如果需要網頁版上傳）

@@ -8,88 +8,186 @@ import { updateUserRichMenu } from '../services/menuManager';
 
 // 創建登入選單
 export function createLoginMenu(userId: string): FlexMessage {
-  return {
-    type: 'flex' as const,
-    altText: '會員登入選單',
-    contents: {
-      type: 'bubble',
-      header: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: '🔐 會員登入',
-            weight: 'bold',
-            size: 'xl',
-            color: '#ffffff',
-            align: 'center'
-          }
-        ],
-        backgroundColor: '#007bff',
-        paddingAll: 'md'
-      },
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: '請選擇您的登入方式',
-            size: 'md',
-            color: '#666666',
-            align: 'center',
-            margin: 'md'
-          },
-          {
-            type: 'separator',
-            margin: 'lg'
-          },
-          {
-            type: 'button',
-            action: {
-              type: 'postback',
-              label: '👤 帳號密碼登入',
-              data: `action=account_login&userId=${userId}`
+  const isProduction = process.env.NODE_ENV === 'production';
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://tscp-line-bot.vercel.app' 
+    : `http://localhost:${process.env.PORT || 3000}`;
+  
+  if (isProduction) {
+    // 生產環境：使用網頁登入
+    return {
+      type: 'flex' as const,
+      altText: '會員登入選單',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '🔐 會員登入',
+              weight: 'bold',
+              size: 'xl',
+              color: '#ffffff',
+              align: 'center'
+            }
+          ],
+          backgroundColor: '#007bff',
+          paddingAll: 'md'
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '請點選下方按鈕進行會員管理',
+              size: 'md',
+              color: '#666666',
+              align: 'center',
+              margin: 'md'
             },
-            style: 'primary',
-            color: '#007bff',
-            margin: 'lg'
-          },
-          {
-            type: 'separator',
-            margin: 'lg'
-          },
-          {
-            type: 'button',
-            action: {
-              type: 'uri',
-              label: '📲 LINE 官方登入 (即將開放)',
-              uri: 'https://line.me'
+            {
+              type: 'separator',
+              margin: 'lg'
             },
-            style: 'link',
-            margin: 'md'
-          }
-        ],
-        spacing: 'sm',
-        paddingAll: 'lg'
-      },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: '首次使用？請先註冊會員',
-            size: 'xs',
-            color: '#aaaaaa',
-            align: 'center'
-          }
-        ],
-        paddingAll: 'sm'
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '🔑 會員登入',
+                uri: `${baseUrl}/login?userId=${userId}&action=login`
+              },
+              style: 'primary',
+              color: '#007bff',
+              margin: 'lg'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '📝 註冊新帳號',
+                uri: `${baseUrl}/login?userId=${userId}&action=register`
+              },
+              style: 'secondary',
+              margin: 'md'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '🔐 修改密碼',
+                uri: `${baseUrl}/login?userId=${userId}&action=password`
+              },
+              style: 'link',
+              margin: 'md'
+            }
+          ],
+          spacing: 'sm',
+          paddingAll: 'lg'
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '安全提示：請在官方頁面進行登入操作',
+              size: 'xs',
+              color: '#aaaaaa',
+              align: 'center'
+            }
+          ],
+          paddingAll: 'sm'
+        }
       }
-    }
-  };
+    };
+  } else {
+    // 開發環境：使用傳統 LINE 訊息登入
+    return {
+      type: 'flex' as const,
+      altText: '會員登入選單',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '🔐 會員登入',
+              weight: 'bold',
+              size: 'xl',
+              color: '#ffffff',
+              align: 'center'
+            }
+          ],
+          backgroundColor: '#007bff',
+          paddingAll: 'md'
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '請選擇您的登入方式',
+              size: 'md',
+              color: '#666666',
+              align: 'center',
+              margin: 'md'
+            },
+            {
+              type: 'separator',
+              margin: 'lg'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: '👤 帳號密碼登入',
+                data: `action=account_login&userId=${userId}`
+              },
+              style: 'primary',
+              color: '#007bff',
+              margin: 'lg'
+            },
+            {
+              type: 'separator',
+              margin: 'lg'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '🌐 網頁登入 (測試)',
+                uri: `${baseUrl}/login?userId=${userId}&action=login`
+              },
+              style: 'link',
+              margin: 'md'
+            }
+          ],
+          spacing: 'sm',
+          paddingAll: 'lg'
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: '開發環境：支援兩種登入方式',
+              size: 'xs',
+              color: '#aaaaaa',
+              align: 'center'
+            }
+          ],
+          paddingAll: 'sm'
+        }
+      }
+    };
+  }
 }
 
 // 產生 LINE Login URL (預留功能)

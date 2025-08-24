@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中藥配藥媒合系統 - 會員管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #333;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 4px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-section {
+            display: none;
+        }
+        
+        .form-section.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-group input.error {
+            border-color: #dc3545;
+        }
+        
+        .form-group .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .form-group .help-text.required {
+            color: #dc3545;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .back-to-line {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .back-to-line a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .password-requirements {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            list-style: none;
+        }
+        
+        .password-requirements li {
+            margin-bottom: 2px;
+        }
+        
+        .password-requirements li.valid {
+            color: #28a745;
+        }
+        
+        .password-requirements li.invalid {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🏥 中藥配藥媒合系統</h1>
+            <p>會員管理中心</p>
+        </div>
+        
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('login')">登入</button>
+            <button class="tab-btn" onclick="switchTab('register')">註冊</button>
+            <button class="tab-btn" onclick="switchTab('password')">修改密碼</button>
+        </div>
+        
+        <div class="alert" id="alert"></div>
+        
+        <!-- 登入表單 -->
+        <div class="form-section active" id="login-section">
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-account">帳號</label>
+                    <input type="text" id="login-account" name="account" placeholder="請輸入手機號碼" required>
+                    <div class="help-text">請輸入您的手機號碼</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="login-password">密碼</label>
+                    <input type="password" id="login-password" name="password" placeholder="請輸入密碼" required>
+                </div>
+                
+                <button type="submit" class="submit-btn">登入</button>
+            </form>
+        </div>
+        
+        <!-- 註冊表單 -->
+        <div class="form-section" id="register-section">
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="register-phone">手機號碼 *</label>
+                    <input type="tel" id="register-phone" name="phone" placeholder="請輸入手機號碼" required maxlength="15">
+                    <div class="help-text">手機號碼將作為帳號使用，註冊後預設密碼與手機號碼相同</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-identity">身分證字號 *</label>
+                    <input type="text" id="register-identity" name="identity" placeholder="請輸入身分證字號" required maxlength="25">
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-name">姓名 *</label>
+                    <input type="text" id="register-name" name="name" placeholder="請輸入姓名" required maxlength="50">
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-address">地址</label>
+                    <input type="text" id="register-address" name="address" placeholder="請輸入地址（選填）" maxlength="255">
+                </div>
+                
+                <button type="submit" class="submit-btn">註冊</button>
+            </form>
+        </div>
+        
+        <!-- 修改密碼表單 -->
+        <div class="form-section" id="password-section">
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="current-password">目前密碼 *</label>
+                    <input type="password" id="current-password" name="old_password" placeholder="請輸入目前密碼" required maxlength="20">
+                </div>
+                
+                <div class="form-group">
+                    <label for="new-password">新密碼 *</label>
+                    <input type="password" id="new-password" name="new_password" placeholder="請輸入新密碼" required maxlength="20">
+                    <ul class="password-requirements" id="password-requirements">
+                        <li id="length-req">密碼長度 1-20 字元</li>
+                    </ul>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-password">確認新密碼 *</label>
+                    <input type="password" id="confirm-password" name="confirm_password" placeholder="請再次輸入新密碼" required maxlength="20">
+                </div>
+                
+                <button type="submit" class="submit-btn">修改密碼</button>
+                <button type="button" class="submit-btn" style="background: #dc3545; margin-top: 10px;" onclick="deleteAccount()">刪除帳號</button>
+            </form>
+        </div>
+        
+        <div class="back-to-line">
+            <a href="#" onclick="backToLine()">返回 LINE</a>
+        </div>
+    </div>
+    
+    <script>
+        // 從 URL 參數取得 LINE 用戶 ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const lineUserId = urlParams.get('userId');
+        const action = urlParams.get('action') || 'login';
+        
+        if (!lineUserId) {
+            showAlert('缺少必要參數', 'error');
+        }
+        
+        // 根據 action 參數切換初始標籤
+        if (action && ['login', 'register', 'password'].includes(action)) {
+            switchTab(action);
+        }
+        
+        // 切換標籤
+        function switchTab(tab) {
+            // 更新按鈕狀態
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            
+            // 更新表單顯示
+            document.querySelectorAll('.form-section').forEach(section => section.classList.remove('active'));
+            document.getElementById(`${tab}-section`).classList.add('active');
+            
+            // 清除提示訊息
+            hideAlert();
+        }
+        
+        // 顯示提示訊息
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert ${type}`;
+            alert.style.display = 'block';
+        }
+        
+        // 隱藏提示訊息
+        function hideAlert() {
+            document.getElementById('alert').style.display = 'none';
+        }
+        
+        // 登入表單處理
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/api/web-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        account: formData.get('account'),
+                        password: formData.get('password'),
+                        lineUserId: lineUserId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('登入成功！正在返回 LINE...', 'success');
+                    setTimeout(() => backToLine(), 2000);
+                } else {
+                    showAlert(result.message || '登入失敗，請檢查帳號密碼', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert('系統錯誤，請稍後再試', 'error');
+            }
+        });
+        
+        // 註冊表單處理
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            // 驗證必填欄位
+            const phone = formData.get('phone').trim();
+            const identity = formData.get('identity').trim();
+            const name = formData.get('name').trim();
+            
+            if (!phone || !identity || !name) {
+                showAlert('請填寫所有必填欄位', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone: phone,
+                        identity: identity,
+                        name: name,
+                        address: formData.get('address') || '',
+                        lineUserId: lineUserId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('註冊成功！預設密碼為您的手機號碼，正在返回 LINE...', 'success');
+                    setTimeout(() => backToLine(), 3000);
+                } else {
+                    showAlert(result.message || '註冊失敗，請稍後再試', 'error');
+                }
+            } catch (error) {
+                console.error('Register error:', error);
+                showAlert('系統錯誤，請稍後再試', 'error');
+            }
+        });
+        
+        // 修改密碼表單處理
+        document.getElementById('password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            const oldPassword = formData.get('old_password');
+            const newPassword = formData.get('new_password');
+            const confirmPassword = formData.get('confirm_password');
+            
+            // 驗證新密碼
+            if (newPassword !== confirmPassword) {
+                showAlert('新密碼與確認密碼不符', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 1 || newPassword.length > 20) {
+                showAlert('新密碼長度必須為 1-20 字元', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/change-password', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        old_password: oldPassword,
+                        new_password: newPassword,
+                        lineUserId: lineUserId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('密碼修改成功！系統已自動登出，正在返回 LINE...', 'success');
+                    setTimeout(() => backToLine(), 2000);
+                } else {
+                    showAlert(result.message || '密碼修改失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Change password error:', error);
+                showAlert('系統錯誤，請稍後再試', 'error');
+            }
+        });
+        
+        // 刪除帳號
+        async function deleteAccount() {
+            if (!confirm('確定要刪除帳號嗎？此操作無法復原！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/delete-account', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lineUserId: lineUserId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('帳號刪除成功！正在返回 LINE...', 'success');
+                    setTimeout(() => backToLine(), 2000);
+                } else {
+                    showAlert(result.message || '帳號刪除失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Delete account error:', error);
+                showAlert('系統錯誤，請稍後再試', 'error');
+            }
+        }
+        
+        // 返回 LINE
+        function backToLine() {
+            if (window.liff) {
+                window.liff.closeWindow();
+            } else {
+                window.close();
+            }
+        }
+        
+        // 密碼強度檢查
+        document.getElementById('new-password').addEventListener('input', (e) => {
+            const password = e.target.value;
+            const lengthReq = document.getElementById('length-req');
+            
+            if (password.length >= 1 && password.length <= 20) {
+                lengthReq.className = 'valid';
+            } else {
+                lengthReq.className = 'invalid';
+            }
+        });
+    </script>
+</body>
+</html>
