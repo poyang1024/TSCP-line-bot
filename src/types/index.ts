@@ -6,9 +6,10 @@ export interface UserTempData {
     memberName: string;
     accessToken: string;
   };
-  prescriptionFile?: string;        // 開發環境：檔案路徑
+  prescriptionFile?: string;        // 檔案路徑（可能是臨時路徑）
   prescriptionFileName?: string;    // 檔案名稱
-  prescriptionBuffer?: string;      // 生產環境：base64 編碼的檔案內容
+  prescriptionBuffer?: string;      // base64 編碼的檔案內容（已棄用）
+  messageId?: string;               // LINE 訊息 ID，用於即時下載
   selectedPharmacy?: {
     id: number;
     name: string;

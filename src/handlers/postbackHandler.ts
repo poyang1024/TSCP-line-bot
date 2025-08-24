@@ -7,6 +7,28 @@ import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
 import FormData from 'form-data';
 import fs from 'fs';
+import path from 'path';
+
+// 即時下載圖片函數
+async function downloadImageImmediately(client: Client, messageId: string): Promise<Buffer> {
+  const stream = await client.getMessageContent(messageId);
+  const chunks: Buffer[] = [];
+  
+  return new Promise((resolve, reject) => {
+    stream.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+    
+    stream.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      resolve(buffer);
+    });
+    
+    stream.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
 
 export async function handlePostback(event: PostbackEvent, client: Client): Promise<{ success: boolean; action?: string; error?: string }> {
   const userId = event.source.userId!;
@@ -203,11 +225,11 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       formData.append('phone', '請聯繫藥局確認聯絡電話');
     }
     
-    // 準備處方籤檔案 - 統一從檔案系統讀取
+    // 準備處方籤檔案 - 檢查是否為臨時檔案需要即時下載
     let fileBuffer: Buffer;
     
-    if (!userState.tempData.prescriptionFile || !fs.existsSync(userState.tempData.prescriptionFile)) {
-      console.error(`❌ ${isProduction ? '生產' : '開發'}環境：處方籤檔案不存在:`, userState.tempData.prescriptionFile);
+    if (!userState.tempData.prescriptionFile) {
+      console.error(`❌ 處方籤檔案路徑不存在`);
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 處方籤檔案遺失，請重新上傳。'
@@ -216,8 +238,52 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     }
     
     try {
-      fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
-      console.log(`📤 ${isProduction ? '生產' : '開發'}環境：從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
+      // 檢查是否為臨時路徑，需要即時下載
+      if (userState.tempData.prescriptionFile.includes('temp_')) {
+        console.log(`📷 檢測到臨時檔案，開始即時下載 - ${userId}`);
+        
+        const messageId = userState.tempData.messageId;
+        if (!messageId) {
+          console.error(`❌ 臨時檔案缺少 messageId`);
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: '❌ 處方籤檔案資訊不完整，請重新上傳。'
+          });
+          return;
+        }
+        
+        // 即時下載圖片
+        fileBuffer = await downloadImageImmediately(client, messageId);
+        console.log(`📤 即時下載完成，檔案大小: ${fileBuffer.length} bytes`);
+        
+        // 更新用戶狀態為實際檔案路徑（可選，但不影響當前流程）
+        const fileName = userState.tempData.prescriptionFileName || `prescription_${userId}_${Date.now()}.jpg`;
+        const uploadDir = isProduction ? '/tmp' : (process.env.UPLOAD_DIR || 'uploads');
+        const actualPath = path.join(uploadDir, fileName);
+        
+        updateUserState(userId, {
+          currentStep: userState.currentStep,
+          tempData: {
+            ...userState.tempData,
+            prescriptionFile: actualPath
+          }
+        });
+        
+      } else {
+        // 從實際檔案讀取
+        if (!fs.existsSync(userState.tempData.prescriptionFile)) {
+          console.error(`❌ 處方籤檔案不存在:`, userState.tempData.prescriptionFile);
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: '❌ 處方籤檔案遺失，請重新上傳。'
+          });
+          return;
+        }
+        
+        fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
+        console.log(`📤 從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
+      }
+      
     } catch (readError) {
       console.error('❌ 讀取處方籤檔案失敗:', readError);
       await client.replyMessage(event.replyToken, {
