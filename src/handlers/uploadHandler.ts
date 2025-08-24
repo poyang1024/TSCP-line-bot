@@ -20,6 +20,25 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     return;
   }
   
+  // 檢查是否正在處理中，防止重複上傳
+  if (userState.currentStep === 'processing_image') {
+    console.log(`📷 [handleImageUpload] 用戶正在處理中，忽略重複請求`);
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '⏳ 正在處理您之前上傳的處方籤，請稍候...\n\n如需上傳新的處方籤，請等待當前處理完成。'
+    });
+    return;
+  }
+  
+  // 設定處理中狀態，鎖定其他操作
+  updateUserState(userId, {
+    currentStep: 'processing_image',
+    tempData: {
+      ...userState.tempData,
+      processingStartTime: Date.now()
+    }
+  });
+  
   // 設置全局備用超時機制變數
   let processCompleted = false;
   let globalTimeout: NodeJS.Timeout;
@@ -28,7 +47,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     // 立即回覆確認訊息，讓用戶知道已收到圖片
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '📷 已收到您的處方籤\n\n⏳ 正在處理中，請稍候...'
+      text: '📷 已收到您的處方籤\n\n⏳ 正在處理中，請稍候...\n\n❗️ 處理期間請勿進行其他操作'
     });
     console.log(`📷 [handleImageUpload] 已發送處理中確認訊息給用戶 ${userId}`);
     
@@ -37,17 +56,27 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       if (!processCompleted) {
         console.error(`❌ [handleImageUpload] 處理流程超時 (2分鐘)，發送備用訊息`);
         processCompleted = true;
+        
+        // 清除處理中狀態
+        updateUserState(userId, {
+          currentStep: undefined,
+          tempData: {
+            ...getUserState(userId).tempData,
+            processingStartTime: undefined
+          }
+        });
+        
         try {
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ 處方籤處理超時，請重新上傳。如問題持續發生，請聯絡客服。'
+            text: '❌ 處方籤處理超時，請重新上傳。如問題持續發生，請聯絡客服。\n\n✅ 現在可以重新上傳處方籤'
           });
           console.log(`❌ [handleImageUpload] 備用超時訊息已推送給用戶 ${userId}`);
         } catch (e) {
           console.error(`❌ [handleImageUpload] 推送備用超時訊息失敗:`, e);
         }
       }
-    }, 120000); // 2分鐘超時
+    }, 90000); // 1.5分鐘超時（縮短時間提升體驗）
     
     // 下載圖片
     const messageId = event.message.id;
@@ -61,9 +90,19 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       console.error(`❌ [handleImageUpload] 下載圖片失敗:`, downloadError);
       clearTimeout(globalTimeout);
       processCompleted = true;
+      
+      // 清除處理中狀態
+      updateUserState(userId, {
+        currentStep: undefined,
+        tempData: {
+          ...getUserState(userId).tempData,
+          processingStartTime: undefined
+        }
+      });
+      
       await client.pushMessage(userId, {
         type: 'text',
-        text: '❌ 圖片下載失敗，請重新上傳。'
+        text: '❌ 圖片下載失敗，請重新上傳。\n\n✅ 現在可以重新上傳處方籤'
       });
       return;
     }
@@ -93,21 +132,31 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     let streamProcessed = false;
     const streamTimeout = setTimeout(async () => {
       if (!streamProcessed && !processCompleted) {
-        console.error(`❌ 圖片處理超時 (30秒)`);
+        console.error(`❌ 圖片處理超時 (20秒)`);
         streamProcessed = true;
         processCompleted = true;
         clearTimeout(globalTimeout);
+        
+        // 清除處理中狀態
+        updateUserState(userId, {
+          currentStep: undefined,
+          tempData: {
+            ...getUserState(userId).tempData,
+            processingStartTime: undefined
+          }
+        });
+        
         try {
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ 圖片處理超時，請重新上傳。'
+            text: '❌ 圖片處理超時，請重新上傳。\n\n✅ 現在可以重新上傳處方籤'
           });
           console.log(`❌ 超時錯誤訊息已推送給用戶 ${userId}`);
         } catch (e) {
           console.error(`❌ 推送超時錯誤訊息失敗:`, e);
         }
       }
-    }, 30000); // 30 秒超時
+    }, 20000); // 20 秒超時（縮短時間提升體驗）
     
     stream.on('data', (chunk) => {
       chunks.push(chunk);
@@ -128,10 +177,20 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         console.error(`❌ 沒有收到圖片數據！`);
         clearTimeout(globalTimeout);
         processCompleted = true;
+        
+        // 清除處理中狀態
+        updateUserState(userId, {
+          currentStep: undefined,
+          tempData: {
+            ...getUserState(userId).tempData,
+            processingStartTime: undefined
+          }
+        });
+        
         try {
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ 圖片下載失敗，請重新上傳。'
+            text: '❌ 圖片下載失敗，請重新上傳。\n\n✅ 現在可以重新上傳處方籤'
           });
         } catch (e) {
           console.error(`❌ 推送錯誤訊息失敗:`, e);
@@ -149,18 +208,26 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
           currentStep: 'prescription_uploaded',
           tempData: {
             ...currentUserState.tempData,
-            prescriptionFile: isProduction ? null : filePath,
+            prescriptionFile: filePath, // 生產和開發環境都保存路徑
             prescriptionFileName: fileName,
-            prescriptionBuffer: isProduction ? buffer.toString('base64') : null
+            prescriptionBuffer: null, // 移除 base64 存儲，改為即時讀取
+            processingStartTime: undefined // 清除處理開始時間
           }
         });
         
-        // 開發環境儲存到檔案系統
-        if (!isProduction) {
-          fs.writeFileSync(filePath, buffer);
-          console.log(`📷 開發環境：處方籤已儲存至 ${filePath}`);
-        } else {
-          console.log(`📷 生產環境：處方籤已轉為 base64 (${buffer.length} bytes)`);
+        // 生產和開發環境都儲存到檔案系統（生產環境用 /tmp）
+        try {
+          // 使用異步操作避免阻塞
+          await new Promise<void>((resolve, reject) => {
+            fs.writeFile(filePath, buffer, (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          console.log(`📷 ${isProduction ? '生產' : '開發'}環境：處方籤已儲存至 ${filePath} (${buffer.length} bytes)`);
+        } catch (writeError) {
+          console.error(`❌ 儲存檔案失敗:`, writeError);
+          throw writeError; // 讓外層 catch 處理
         }
         
         console.log(`✅ 用戶狀態已更新 - 處方籤上傳完成`);
@@ -173,8 +240,8 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
           altText: '處方籤上傳成功',
           template: {
             type: 'buttons' as const,
-            title: '📷 處方籤上傳成功！',
-            text: `${greeting}請選擇要配藥的藥局：`,
+            title: '✅ 處方籤上傳成功！',
+            text: `${greeting}處理完成！請選擇要配藥的藥局：`,
             actions: [
               {
                 type: 'message' as const,
@@ -199,10 +266,20 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
         console.error('📷 處理錯誤:', saveError);
         clearTimeout(globalTimeout);
         processCompleted = true;
+        
+        // 清除處理中狀態
+        updateUserState(userId, {
+          currentStep: undefined,
+          tempData: {
+            ...getUserState(userId).tempData,
+            processingStartTime: undefined
+          }
+        });
+        
         try {
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ 處方籤處理失敗，請重新上傳。'
+            text: '❌ 處方籤處理失敗，請重新上傳。\n\n✅ 現在可以重新上傳處方籤'
           });
         } catch (pushError) {
           console.error('❌ 推送錯誤訊息失敗:', pushError);
@@ -219,10 +296,19 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       streamProcessed = true;
       processCompleted = true;
       
+      // 清除處理中狀態
+      updateUserState(userId, {
+        currentStep: undefined,
+        tempData: {
+          ...getUserState(userId).tempData,
+          processingStartTime: undefined
+        }
+      });
+      
       try {
         await client.pushMessage(userId, {
           type: 'text',
-          text: '❌ 處方籤下載失敗，請稍後再試。'
+          text: '❌ 處方籤下載失敗，請稍後再試。\n\n✅ 現在可以重新上傳處方籤'
         });
         console.log(`❌ 下載錯誤訊息已推送給用戶 ${userId}`);
       } catch (pushError) {
@@ -237,11 +323,24 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     clearTimeout(globalTimeout);
     processCompleted = true;
     
+    // 清除處理中狀態
+    try {
+      updateUserState(userId, {
+        currentStep: undefined,
+        tempData: {
+          ...getUserState(userId).tempData,
+          processingStartTime: undefined
+        }
+      });
+    } catch (updateError) {
+      console.error(`❌ [handleImageUpload] 清除用戶狀態失敗:`, updateError);
+    }
+    
     // 嘗試發送錯誤訊息，優先使用 replyMessage（如果還沒用過）
     try {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: '❌ 處方籤上傳失敗，請稍後再試。'
+        text: '❌ 處方籤上傳失敗，請稍後再試。\n\n✅ 現在可以重新上傳處方籤'
       });
       console.log(`❌ [handleImageUpload] 致命錯誤訊息已回覆給用戶 ${userId}`);
     } catch (replyError) {
@@ -250,7 +349,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
       try {
         await client.pushMessage(userId, {
           type: 'text',
-          text: '❌ 處方籤上傳失敗，請稍後再試。'
+          text: '❌ 處方籤上傳失敗，請稍後再試。\n\n✅ 現在可以重新上傳處方籤'
         });
         console.log(`❌ [handleImageUpload] 致命錯誤訊息已推送給用戶 ${userId}`);
       } catch (pushError) {

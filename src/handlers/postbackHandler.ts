@@ -15,6 +15,18 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   const action = data.get('action');
   
   try {
+    // 檢查是否正在處理圖片，如果是則阻止其他操作
+    if (userState.currentStep === 'processing_image') {
+      const processingTime = Date.now() - (userState.tempData?.processingStartTime || 0);
+      const processingMinutes = Math.floor(processingTime / 60000);
+      
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: `⏳ 正在處理您上傳的處方籤${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿點選按鈕。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳處方籤。`
+      });
+      return { success: true, action: 'blocked_during_processing' };
+    }
+    
     // 檢查是否為圖文選單的 postback
     const richMenuActions = [
       'login_required', 'create_order', 'pharmacist_consultation',
@@ -195,33 +207,28 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       formData.append('phone', '請聯繫藥局確認聯絡電話');
     }
     
-    // 準備處方籤檔案
+    // 準備處方籤檔案 - 統一從檔案系統讀取
     let fileBuffer: Buffer;
     
-    if (isProduction) {
-      // 生產環境：從 base64 字串還原 buffer
-      if (!userState.tempData.prescriptionBuffer) {
-        console.error('❌ 生產環境：處方籤 buffer 不存在');
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: '❌ 處方籤檔案遺失，請重新上傳。'
-        });
-        return;
-      }
-      fileBuffer = Buffer.from(userState.tempData.prescriptionBuffer, 'base64');
-      console.log(`📤 生產環境：從 buffer 讀取處方籤 (${fileBuffer.length} bytes)`);
-    } else {
-      // 開發環境：從檔案系統讀取
-      if (!userState.tempData.prescriptionFile || !fs.existsSync(userState.tempData.prescriptionFile)) {
-        console.error('❌ 開發環境：處方籤檔案不存在:', userState.tempData.prescriptionFile);
-        await client.replyMessage(event.replyToken, {
-          type: 'text',
-          text: '❌ 處方籤檔案遺失，請重新上傳。'
-        });
-        return;
-      }
+    if (!userState.tempData.prescriptionFile || !fs.existsSync(userState.tempData.prescriptionFile)) {
+      console.error(`❌ ${isProduction ? '生產' : '開發'}環境：處方籤檔案不存在:`, userState.tempData.prescriptionFile);
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 處方籤檔案遺失，請重新上傳。'
+      });
+      return;
+    }
+    
+    try {
       fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
-      console.log(`📤 開發環境：從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
+      console.log(`📤 ${isProduction ? '生產' : '開發'}環境：從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
+    } catch (readError) {
+      console.error('❌ 讀取處方籤檔案失敗:', readError);
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 讀取處方籤檔案失敗，請重新上傳。'
+      });
+      return;
     }
     
     // 上傳處方籤檔案
