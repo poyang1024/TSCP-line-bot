@@ -286,7 +286,7 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
           console.log('❌ 會員登入失敗 - API 回傳 null');
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n• 後端 API 無回應\n\n請嘗試使用帳號密碼登入，或聯繫客服協助。\n\n📝 技術資訊：API 回傳空值'
+            text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n• 後端 API 無回應\n\n請嘗試使用帳號密碼登入。'
           });
         }
       } catch (error) {
