@@ -11,7 +11,7 @@ export async function handleFollow(event: FollowEvent, client: Client): Promise<
   
   const welcomeMessage: FlexMessage = {
     type: 'flex',
-    altText: '歡迎使用中藥配藥服務',
+    altText: '歡迎使用中藥預約服務',
     contents: {
       type: 'bubble',
       header: {
@@ -20,7 +20,7 @@ export async function handleFollow(event: FollowEvent, client: Client): Promise<
         contents: [
           {
             type: 'text',
-            text: '🌿 歡迎使用中藥配藥服務！',
+            text: '🌿 歡迎使用中藥預約服務！',
             weight: 'bold',
             size: 'xl',
             color: '#27AE60'
