@@ -67,11 +67,6 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
             type: 'message' as const,
             label: '🔍 搜尋藥局',
             text: '搜尋藥局'
-          },
-          {
-            type: 'postback' as const,
-            label: '📋 查看我的訂單',
-            data: 'action=view_orders'
           }
         ]
       }
