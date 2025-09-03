@@ -238,12 +238,14 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
           console.log('👤 會員名稱:', member.name);
           console.log('👤 會員帳號:', member.account);
           console.log('🔑 Access Token 長度:', member.access_token?.length || 0);
+          console.log('📞 會員電話:', member.info?.phone || '未提供');
+          console.log('📍 會員地址:', member.info?.address || '未提供');
           
           // 登入成功，建立 JWT Token
           const token = createUserToken(userId, member.user_id, member.access_token, member.name);
           console.log('🎫 JWT Token 已建立，長度:', token.length);
           
-          // 更新用戶狀態為已登入
+          // 更新用戶狀態為已登入，包含個人資訊
           updateUserState(userId, {
             currentStep: 'menu',
             memberId: member.user_id,
@@ -254,10 +256,15 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
                 memberId: member.user_id,
                 memberName: member.name,
                 accessToken: member.access_token
+              },
+              // 保存會員的個人資訊
+              memberPersonalInfo: {
+                phone: member.info?.phone,
+                address: member.info?.address
               }
             }
           });
-          console.log('💾 用戶狀態已更新');
+          console.log('💾 用戶狀態已更新（包含個人資訊）');
           
           // 連接 WebSocket
           try {
@@ -371,13 +378,27 @@ async function performLogin(
     const member = await loginMember(identifier, password);
     
     if (member) {
+      console.log('✅ 帳號密碼登入成功');
+      console.log('👤 會員 ID:', member.user_id);
+      console.log('👤 會員名稱:', member.name);
+      console.log('👤 會員帳號:', member.account);
+      console.log('🔑 Access Token 長度:', member.access_token?.length || 0);
+      console.log('📞 會員電話:', member.info?.phone || '未提供');
+      console.log('📍 會員地址:', member.info?.address || '未提供');
+      
       // 建立 JWT Token
       const token = createUserToken(userId, member.user_id, member.access_token, member.name);
       
-      // 清除用戶狀態和暫存資料，並保存會員資訊
+      // 清除用戶狀態和暫存資料，並保存會員資訊（包含個人資訊）
       updateUserState(userId, { 
         currentStep: undefined, 
-        tempData: undefined,
+        tempData: {
+          // 保存會員的個人資訊
+          memberPersonalInfo: {
+            phone: member.info?.phone,
+            address: member.info?.address
+          }
+        },
         memberId: member.user_id,
         accessToken: member.access_token,
         memberName: member.name

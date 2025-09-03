@@ -43,7 +43,17 @@ export async function loginWithLine(lineUserId: string): Promise<Member | null> 
     if (response.data.success) {
       console.log('✅ LINE 登入成功');
       console.log('👤 會員資料:', JSON.stringify(response.data.data, null, 2));
-      return response.data.data;
+      
+      // 確保回應資料包含所需的 info 欄位
+      const memberData = response.data.data;
+      if (!memberData.info) {
+        memberData.info = {
+          phone: null,
+          address: null
+        };
+      }
+      
+      return memberData;
     } else {
       console.error('❌ API 回傳 success: false');
       console.error('❌ 錯誤訊息:', response.data.message || '無錯誤訊息');
@@ -85,17 +95,63 @@ export async function loginWithLine(lineUserId: string): Promise<Member | null> 
 // 會員登入
 export async function loginMember(account: string, password: string): Promise<Member | null> {
   try {
+    console.log('🔗 開始會員登入...');
+    console.log('📋 帳號:', account);
+    
     const response = await api.post('/login/tscp', {
       account,
       password
     });
     
+    console.log('📥 API 回應狀態:', response.status);
+    console.log('📥 API 回應資料:', JSON.stringify(response.data, null, 2));
+    
     if (response.data.success) {
-      return response.data.data;
+      console.log('✅ 會員登入成功');
+      console.log('👤 會員資料:', JSON.stringify(response.data.data, null, 2));
+      
+      // 確保回應資料包含所需的 info 欄位
+      const memberData = response.data.data;
+      if (!memberData.info) {
+        memberData.info = {
+          phone: null,
+          address: null
+        };
+      }
+      
+      return memberData;
+    } else {
+      console.error('❌ API 回傳 success: false');
+      console.error('❌ 錯誤訊息:', response.data.message || '無錯誤訊息');
+      return null;
     }
-    return null;
   } catch (error) {
-    console.error('登入失敗:', error);
+    console.error('❌ 會員登入發生錯誤:');
+    
+    if (axios.isAxiosError(error)) {
+      console.error('📊 錯誤類型: Axios 錯誤');
+      console.error('📊 HTTP 狀態:', error.response?.status);
+      console.error('📊 狀態文字:', error.response?.statusText);
+      console.error('📊 錯誤回應資料:', error.response?.data);
+      console.error('📊 請求配置:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        data: error.config?.data,
+        timeout: error.config?.timeout
+      });
+      
+      if (error.code) {
+        console.error('📊 錯誤代碼:', error.code);
+      }
+      
+      if (error.message) {
+        console.error('📊 錯誤訊息:', error.message);
+      }
+    } else {
+      console.error('📊 錯誤類型: 一般錯誤');
+      console.error('📊 錯誤物件:', error);
+    }
+    
     return null;
   }
 }

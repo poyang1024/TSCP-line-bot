@@ -6,6 +6,10 @@ export interface UserTempData {
     memberName: string;
     accessToken: string;
   };
+  memberPersonalInfo?: {
+    phone: string | null;
+    address: string | null;
+  };
   prescriptionFile?: string;        // 檔案路徑（可能是臨時路徑）
   prescriptionFileName?: string;    // 檔案名稱
   prescriptionBuffer?: string;      // base64 編碼的檔案內容（已棄用）
@@ -35,6 +39,10 @@ export interface Member {
   name: string;
   account: string;
   access_token: string;
+  info: {
+    phone: string | null;
+    address: string | null;
+  };
 }
 
 // 藥局資料

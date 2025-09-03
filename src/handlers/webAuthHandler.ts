@@ -32,7 +32,7 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
         tempData: undefined,
         memberId: member.user_id,
         accessToken: member.access_token,
-        memberName: member.name
+        memberName: member.name,
       });
       
       // 嘗試切換到會員選單

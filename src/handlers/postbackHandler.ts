@@ -219,11 +219,30 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     formData.append('area_id', pharmacyId!);
     formData.append('is_delivery', isDelivery ? '1' : '0');
     
-    // 如果是外送，設定預設值或提示用戶輸入
+    // 如果是外送，使用會員資訊或設定預設值
     if (isDelivery) {
-      // 這裡可以加入地址收集流程，暫時使用預設值
-      formData.append('address', '請聯繫藥局確認配送地址');
-      formData.append('phone', '請聯繫藥局確認聯絡電話');
+      // 優先使用會員的個人資訊
+      const memberInfo = userState.tempData?.memberPersonalInfo;
+      const memberPhone = memberInfo?.phone;
+      const memberAddress = memberInfo?.address;
+      
+      // 使用會員電話，若無則使用預設值
+      const phone = memberPhone && memberPhone.trim() !== '' 
+        ? memberPhone 
+        : '請聯繫藥局確認聯絡電話';
+      
+      // 使用會員地址，若無則使用預設值
+      const address = memberAddress && memberAddress.trim() !== '' 
+        ? memberAddress 
+        : '請聯繫藥局確認配送地址';
+      
+      formData.append('address', address);
+      formData.append('phone', phone);
+      
+      console.log('📍 使用配送資訊:', { 
+        phone: phone === memberPhone ? '會員電話' : '預設值',
+        address: address === memberAddress ? '會員地址' : '預設值'
+      });
     }
     
     // 準備藥單檔案 - 檢查是否為臨時檔案需要即時下載
