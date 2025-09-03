@@ -12,13 +12,22 @@ const api = axios.create({
 // LINE 直接登入
 export async function loginWithLine(lineUserId: string): Promise<Member | null> {
   try {
+    console.log('🔗 開始 LINE 直接登入...');
+    console.log('📋 LINE User ID:', lineUserId);
+    
     // 根據環境選擇 URL
     const lineLoginUrl = process.env.LINE_LOGIN_API_URL;
+    console.log('🌐 使用 API URL:', lineLoginUrl);
+    console.log('🏷️ 當前環境:', process.env.NODE_ENV);
 
     if (!lineLoginUrl) {
-      console.error('LINE 登入 URL 未設定');
+      console.error('❌ LINE 登入 URL 未設定');
+      console.error('❌ 請檢查 .env 文件中的 LINE_LOGIN_API_URL 設定');
       return null;
     }
+
+    const requestUrl = `${lineLoginUrl}?line_user_id=${lineUserId}`;
+    console.log('📤 發送請求到:', requestUrl);
 
     const response = await axios.get(lineLoginUrl, {
       params: {
@@ -27,12 +36,48 @@ export async function loginWithLine(lineUserId: string): Promise<Member | null> 
       timeout: 10000
     });
     
+    console.log('📥 API 回應狀態:', response.status);
+    console.log('📥 API 回應 headers:', response.headers);
+    console.log('📥 API 回應完整資料:', JSON.stringify(response.data, null, 2));
+    
     if (response.data.success) {
+      console.log('✅ LINE 登入成功');
+      console.log('👤 會員資料:', JSON.stringify(response.data.data, null, 2));
       return response.data.data;
+    } else {
+      console.error('❌ API 回傳 success: false');
+      console.error('❌ 錯誤訊息:', response.data.message || '無錯誤訊息');
+      console.error('❌ 完整回應:', JSON.stringify(response.data, null, 2));
+      return null;
     }
-    return null;
   } catch (error) {
-    console.error('LINE 直接登入失敗:', error);
+    console.error('❌ LINE 直接登入發生錯誤:');
+    
+    if (axios.isAxiosError(error)) {
+      console.error('📊 錯誤類型: Axios 錯誤');
+      console.error('📊 HTTP 狀態:', error.response?.status);
+      console.error('📊 狀態文字:', error.response?.statusText);
+      console.error('📊 錯誤回應 headers:', error.response?.headers);
+      console.error('📊 錯誤回應資料:', error.response?.data);
+      console.error('📊 請求配置:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        params: error.config?.params,
+        timeout: error.config?.timeout
+      });
+      
+      if (error.code) {
+        console.error('📊 錯誤代碼:', error.code);
+      }
+      
+      if (error.message) {
+        console.error('📊 錯誤訊息:', error.message);
+      }
+    } else {
+      console.error('📊 錯誤類型: 一般錯誤');
+      console.error('📊 錯誤物件:', error);
+    }
+    
     return null;
   }
 }

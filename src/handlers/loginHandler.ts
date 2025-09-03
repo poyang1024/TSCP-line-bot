@@ -218,6 +218,9 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
 
   switch (action) {
     case 'line_direct_login':
+      console.log('🚀 開始處理 LINE 直接登入');
+      console.log('👤 User ID:', userId);
+      
       // LINE 直接登入
       await client.replyMessage(event.replyToken, {
         type: 'text',
@@ -225,11 +228,20 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
       });
       
       try {
+        console.log('📞 呼叫 loginWithLine API...');
         const member = await loginWithLine(userId);
+        console.log('📋 API 回傳結果:', member ? '有資料' : '無資料');
         
         if (member) {
+          console.log('✅ 會員登入成功');
+          console.log('👤 會員 ID:', member.user_id);
+          console.log('👤 會員名稱:', member.name);
+          console.log('👤 會員帳號:', member.account);
+          console.log('🔑 Access Token 長度:', member.access_token?.length || 0);
+          
           // 登入成功，建立 JWT Token
           const token = createUserToken(userId, member.user_id, member.access_token, member.name);
+          console.log('🎫 JWT Token 已建立，長度:', token.length);
           
           // 更新用戶狀態為已登入
           updateUserState(userId, {
@@ -245,12 +257,23 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
               }
             }
           });
+          console.log('💾 用戶狀態已更新');
           
           // 連接 WebSocket
-          connectUserWebSocket(userId, member.user_id, token);
+          try {
+            connectUserWebSocket(userId, member.user_id, token);
+            console.log('🔌 WebSocket 連接成功');
+          } catch (wsError) {
+            console.error('🔌 WebSocket 連接失敗:', wsError);
+          }
           
           // 更新到會員圖文選單
-          await updateUserRichMenu(client, userId, true);
+          try {
+            await updateUserRichMenu(client, userId, true);
+            console.log('📋 圖文選單更新成功');
+          } catch (menuError) {
+            console.error('📋 圖文選單更新失敗:', menuError);
+          }
           
           const welcomeMessage = {
             type: 'text' as const,
@@ -258,17 +281,23 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
           };
           
           await client.pushMessage(userId, welcomeMessage);
+          console.log('💬 歡迎訊息已發送');
         } else {
+          console.log('❌ 會員登入失敗 - API 回傳 null');
           await client.pushMessage(userId, {
             type: 'text',
-            text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n\n請嘗試使用帳號密碼登入，或聯繫客服協助。'
+            text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n• 後端 API 無回應\n\n請嘗試使用帳號密碼登入，或聯繫客服協助。\n\n📝 技術資訊：API 回傳空值'
           });
         }
       } catch (error) {
-        console.error('LINE 直接登入錯誤:', error);
+        console.error('❌ LINE 直接登入過程發生例外錯誤:');
+        console.error('❌ 錯誤類型:', error?.constructor?.name);
+        console.error('❌ 錯誤訊息:', error?.message);
+        console.error('❌ 錯誤堆疊:', error?.stack);
+        
         await client.pushMessage(userId, {
           type: 'text',
-          text: '❌ 登入過程發生錯誤，請稍後再試或使用帳號密碼登入。'
+          text: `❌ 登入過程發生錯誤，請稍後再試或使用帳號密碼登入。\n\n📝 技術資訊：${error?.message || '未知錯誤'}`
         });
       }
       break;
