@@ -9,6 +9,34 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// LINE 直接登入
+export async function loginWithLine(lineUserId: string): Promise<Member | null> {
+  try {
+    // 根據環境選擇 URL
+    const lineLoginUrl = process.env.LINE_LOGIN_API_URL;
+
+    if (!lineLoginUrl) {
+      console.error('LINE 登入 URL 未設定');
+      return null;
+    }
+
+    const response = await axios.get(lineLoginUrl, {
+      params: {
+        line_user_id: lineUserId
+      },
+      timeout: 10000
+    });
+    
+    if (response.data.success) {
+      return response.data.data;
+    }
+    return null;
+  } catch (error) {
+    console.error('LINE 直接登入失敗:', error);
+    return null;
+  }
+}
+
 // 會員登入
 export async function loginMember(account: string, password: string): Promise<Member | null> {
   try {

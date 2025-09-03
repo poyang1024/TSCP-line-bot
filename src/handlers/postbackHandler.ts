@@ -62,8 +62,9 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
     
     switch (action) {
       case 'account_login':
+      case 'line_direct_login':
         await handleLoginPostback(event, client);
-        return { success: true, action: 'account_login' };
+        return { success: true, action: action };
         
       case 'select_pharmacy':
         await handlePharmacySelection(event, client, data);

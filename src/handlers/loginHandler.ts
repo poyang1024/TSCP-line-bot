@@ -1,6 +1,6 @@
 import { MessageEvent, PostbackEvent, Client, TextMessage, FlexMessage } from '@line/bot-sdk';
 import { getUserState, updateUserState, updateUserTempData } from '../services/userService';
-import { loginMember, changePassword } from '../services/apiService';
+import { loginMember, changePassword, loginWithLine } from '../services/apiService';
 import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { createMainMenu } from '../templates/messageTemplates';
 import { createUserToken } from '../services/jwtService';
@@ -55,22 +55,32 @@ export function createLoginMenu(userId: string): FlexMessage {
             {
               type: 'button',
               action: {
-                type: 'uri',
-                label: '🔑 會員登入',
-                uri: `${baseUrl}/login?userId=${userId}&action=login`
+                type: 'postback',
+                label: 'LINE 直接登入',
+                data: `action=line_direct_login&userId=${userId}`
               },
               style: 'primary',
-              color: '#007bff',
+              color: '#00C851',
               margin: 'lg'
             },
             {
               type: 'button',
               action: {
                 type: 'uri',
-                label: '📝 註冊新帳號',
-                uri: `${baseUrl}/login?userId=${userId}&action=register`
+                label: '會員登入',
+                uri: `${baseUrl}/login?userId=${userId}&action=login`
               },
               style: 'secondary',
+              margin: 'md'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '註冊新帳號',
+                uri: `${baseUrl}/login?userId=${userId}&action=register`
+              },
+              style: 'link',
               margin: 'md'
             },
             {
@@ -146,12 +156,22 @@ export function createLoginMenu(userId: string): FlexMessage {
               type: 'button',
               action: {
                 type: 'postback',
+                label: 'LINE 直接登入',
+                data: `action=line_direct_login&userId=${userId}`
+              },
+              style: 'primary',
+              color: '#00C851',
+              margin: 'lg'
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
                 label: '👤 帳號密碼登入',
                 data: `action=account_login&userId=${userId}`
               },
-              style: 'primary',
-              color: '#007bff',
-              margin: 'lg'
+              style: 'secondary',
+              margin: 'md'
             },
             {
               type: 'separator',
@@ -197,6 +217,62 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
   const action = data.get('action');
 
   switch (action) {
+    case 'line_direct_login':
+      // LINE 直接登入
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '🔗 正在使用 LINE 帳號登入，請稍候...'
+      });
+      
+      try {
+        const member = await loginWithLine(userId);
+        
+        if (member) {
+          // 登入成功，建立 JWT Token
+          const token = createUserToken(userId, member.user_id, member.access_token, member.name);
+          
+          // 更新用戶狀態為已登入
+          updateUserState(userId, {
+            currentStep: 'menu',
+            memberId: member.user_id,
+            memberName: member.name,
+            accessToken: member.access_token,
+            tempData: {
+              memberInfo: {
+                memberId: member.user_id,
+                memberName: member.name,
+                accessToken: member.access_token
+              }
+            }
+          });
+          
+          // 連接 WebSocket
+          connectUserWebSocket(userId, member.user_id, token);
+          
+          // 更新到會員圖文選單
+          await updateUserRichMenu(client, userId, true);
+          
+          const welcomeMessage = {
+            type: 'text' as const,
+            text: `🎉 歡迎回來，${member.name}！\n\n您已成功透過 LINE 登入系統。\n\n請點選下方選單使用服務功能。`
+          };
+          
+          await client.pushMessage(userId, welcomeMessage);
+        } else {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n\n請嘗試使用帳號密碼登入，或聯繫客服協助。'
+          });
+        }
+      } catch (error) {
+        console.error('LINE 直接登入錯誤:', error);
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: '❌ 登入過程發生錯誤，請稍後再試或使用帳號密碼登入。'
+        });
+      }
+      break;
+
     case 'account_login':
       updateUserState(userId, { 
         currentStep: 'waiting_account',
