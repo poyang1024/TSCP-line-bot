@@ -193,6 +193,15 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
   
+  // 檢查外送功能是否可用
+  if (isDelivery) {
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '🚚 外送到府功能即將開放！\n\n目前僅提供到店自取服務，請選擇到店自取選項。\n\n感謝您的耐心等候。'
+    });
+    return;
+  }
+  
   // 檢查是否有藥單資料（統一使用檔案路徑檢查）
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPrescription = !!userState.tempData?.prescriptionFile;
