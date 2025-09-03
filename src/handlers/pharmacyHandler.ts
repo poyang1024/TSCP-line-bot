@@ -35,13 +35,28 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       return;
     }
 
-    // 搜尋藥局（不使用關鍵字過濾，返回所有可用藥局）
-    const pharmacies = await searchPharmacies(token);
+    // 取得會員地址作為搜尋關鍵字
+    const memberAddress = userState.tempData?.memberPersonalInfo?.address;
+    let searchKeyword: string | undefined;
+    
+    if (memberAddress && memberAddress.trim() !== '') {
+      searchKeyword = memberAddress.trim();
+      console.log(`🔍 使用會員地址作為搜尋關鍵字: ${searchKeyword}`);
+    } else {
+      console.log(`🔍 沒有會員地址，使用預設搜尋`);
+    }
+
+    // 搜尋藥局（如果有會員地址則使用地址作為關鍵字）
+    const pharmacies = await searchPharmacies(token, searchKeyword);
     
     if (pharmacies.length === 0) {
+      const noResultMessage = searchKeyword 
+        ? `🏥 在您的地址附近（${searchKeyword}）沒有找到可用的藥局。\n\n請稍後再試或聯絡客服。`
+        : '🏥 目前沒有找到可用的藥局，請稍後再試。';
+        
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `🏥 目前沒有找到可用的藥局，請稍後再試。`
+        text: noResultMessage
       });
       return;
     }
@@ -49,10 +64,14 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
     // 限制顯示前10家藥局
     const limitedPharmacies = pharmacies.slice(0, 10);
     
+    const searchResultMessage = searchKeyword
+      ? `🏥 根據您的地址（${searchKeyword}），找到 ${pharmacies.length} 家藥局：`
+      : `🏥 找到 ${pharmacies.length} 家藥局，以下是附近的藥局：`;
+    
     await client.replyMessage(event.replyToken, [
       {
         type: 'text',
-        text: `🏥 找到 ${pharmacies.length} 家藥局，以下是附近的藥局：`
+        text: searchResultMessage
       },
       createPharmacyCarousel(limitedPharmacies)
     ]);
