@@ -44,7 +44,7 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
       
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `⏳ 正在處理您上傳的處方籤${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿點選按鈕。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳處方籤。`
+        text: `⏳ 正在處理您上傳的藥單${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿點選按鈕。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳藥單。`
       });
       return { success: true, action: 'blocked_during_processing' };
     }
@@ -129,7 +129,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     return;
   }
   
-  // 檢查是否有上傳的處方籤（統一使用檔案路徑檢查）
+  // 檢查是否有上傳的藥單（統一使用檔案路徑檢查）
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPrescription = !!userState.tempData?.prescriptionFile;
   
@@ -142,10 +142,10 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   });
   
   if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
-    console.log(`❌ 用戶狀態檢查失敗 - 缺少處方籤資料`);
+    console.log(`❌ 用戶狀態檢查失敗 - 缺少藥單資料`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '📷 請先上傳處方籤照片，然後再選擇藥局。'
+      text: '📷 請先上傳藥單照片，然後再選擇藥局。'
     });
     return;
   }
@@ -177,7 +177,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
         },
         {
           type: 'postback',
-          label: '🚚 外送到府',
+          label: '🚚 外送到府 （功能即將開放）',
           data: `action=confirm_order&delivery=true&pharmacy_id=${pharmacyId}`
         }
       ]
@@ -193,7 +193,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
   
-  // 檢查是否有處方籤資料（統一使用檔案路徑檢查）
+  // 檢查是否有藥單資料（統一使用檔案路徑檢查）
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPrescription = !!userState.tempData?.prescriptionFile;
   
@@ -208,7 +208,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     });
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '❌ 訂單資訊不完整，請重新上傳處方籤並選擇藥局。'
+      text: '❌ 訂單資訊不完整，請重新上傳藥單並選擇藥局。'
     });
     return;
   }
@@ -226,14 +226,14 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       formData.append('phone', '請聯繫藥局確認聯絡電話');
     }
     
-    // 準備處方籤檔案 - 檢查是否為臨時檔案需要即時下載
+    // 準備藥單檔案 - 檢查是否為臨時檔案需要即時下載
     let fileBuffer: Buffer;
     
     if (!userState.tempData.prescriptionFile) {
-      console.error(`❌ 處方籤檔案路徑不存在`);
+      console.error(`❌ 藥單檔案路徑不存在`);
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: '❌ 處方籤檔案遺失，請重新上傳。'
+        text: '❌ 藥單檔案遺失，請重新上傳。'
       });
       return;
     }
@@ -248,7 +248,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
           console.error(`❌ 臨時檔案缺少 messageId`);
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: '❌ 處方籤檔案資訊不完整，請重新上傳。'
+            text: '❌ 藥單檔案資訊不完整，請重新上傳。'
           });
           return;
         }
@@ -273,28 +273,28 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       } else {
         // 從實際檔案讀取
         if (!fs.existsSync(userState.tempData.prescriptionFile)) {
-          console.error(`❌ 處方籤檔案不存在:`, userState.tempData.prescriptionFile);
+          console.error(`❌ 藥單檔案不存在:`, userState.tempData.prescriptionFile);
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: '❌ 處方籤檔案遺失，請重新上傳。'
+            text: '❌ 藥單檔案遺失，請重新上傳。'
           });
           return;
         }
         
         fileBuffer = fs.readFileSync(userState.tempData.prescriptionFile);
-        console.log(`📤 從檔案讀取處方籤 (${fileBuffer.length} bytes)`);
+        console.log(`📤 從檔案讀取藥單 (${fileBuffer.length} bytes)`);
       }
       
     } catch (readError) {
-      console.error('❌ 讀取處方籤檔案失敗:', readError);
+      console.error('❌ 讀取藥單檔案失敗:', readError);
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: '❌ 讀取處方籤檔案失敗，請重新上傳。'
+        text: '❌ 讀取藥單檔案失敗，請重新上傳。'
       });
       return;
     }
     
-    // 上傳處方籤檔案
+    // 上傳藥單檔案
     formData.append('files[]', fileBuffer, {
       filename: userState.tempData.prescriptionFileName || 'prescription.jpg',
       contentType: 'image/jpeg'

@@ -18,7 +18,7 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
       
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `⏳ 正在處理您上傳的處方籤${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿進行其他操作。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳處方籤。`
+        text: `⏳ 正在處理您上傳的藥單${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿進行其他操作。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳藥單。`
       });
       return { success: true, action: 'blocked_during_processing' };
     }
@@ -134,14 +134,14 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
       console.log(`📷 收到圖片訊息，用戶登入狀態檢查: accessToken=${!!userState.accessToken}, memberId=${userState.memberId}`);
       
       if (userState.accessToken && userState.memberId) {
-        console.log(`📷 用戶已登入，開始處理處方籤上傳`);
+        console.log(`📷 用戶已登入，開始處理藥單上傳`);
         await handleImageUpload(event as MessageEvent & { message: any }, client);
         return { success: true, action: 'prescription_upload' };
       } else {
         console.log(`📷 用戶未登入，提示登入訊息`);
         await client.replyMessage(event.replyToken, {
           type: 'text',
-          text: '📷 收到您的圖片！\n\n如果您想要上傳處方籤，請先使用「中藥預約」功能並登入會員。'
+          text: '📷 收到您的圖片！\n\n如果您想要上傳藥單，請先使用「中藥預約」功能並登入會員。'
         });
         return { success: true, action: 'image_received_not_logged_in' };
       }

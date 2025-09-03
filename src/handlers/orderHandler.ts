@@ -26,7 +26,7 @@ export async function handleOrderInquiry(event: MessageEvent, client: Client): P
     if (orders.length === 0) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: '📋 您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳處方籤。'
+        text: '📋 您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。'
       });
       return;
     }

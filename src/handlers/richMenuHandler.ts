@@ -330,7 +330,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     if (orders.length === 0) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳處方籤。`
+        text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`
       })
       return
     }
@@ -374,7 +374,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
   }
 }
 
-// 處理創建訂單/上傳處方籤
+// 處理創建訂單/上傳藥單
 async function handleCreateOrder(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
   console.log(`📝 處理創建訂單請求: userId=${userId}`)
   
@@ -415,7 +415,7 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     }
   }
   
-  // 設定用戶狀態為等待上傳處方籤
+  // 設定用戶狀態為等待上傳藥單
   updateUserTempData(userId, {
     waitingFor: 'prescription_upload',
     memberInfo: {
@@ -425,11 +425,11 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     }
   })
   
-  // 提示用戶上傳處方籤
+  // 提示用戶上傳藥單
   const memberName = userSession.memberName || ''
   await client.replyMessage(event.replyToken, {
     type: 'text',
-    text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳處方籤圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的處方籤圖片開始預約！`
+    text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
   })
 }
 

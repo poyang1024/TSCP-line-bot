@@ -15,7 +15,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     console.log(`📷 [handleImageUpload] 用戶未登入，發送登入提示`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '❌ 請先登入會員帳號才能上傳處方籤\n\n請使用下方選單的「中藥預約」功能進行登入。'
+      text: '❌ 請先登入會員帳號才能上傳藥單\n\n請使用下方選單的「中藥預約」功能進行登入。'
     });
     return;
   }
@@ -25,7 +25,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     console.log(`📷 [handleImageUpload] 用戶正在處理中，忽略重複請求`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '⏳ 正在處理您之前上傳的處方籤，請稍候...\n\n如需上傳新的處方籤，請等待當前處理完成。'
+      text: '⏳ 正在處理您之前上傳的藥單，請稍候...\n\n如需上傳新的藥單，請等待當前處理完成。'
     });
     return;
   }
@@ -51,17 +51,17 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
   const memberName = currentUserState.tempData?.memberInfo?.memberName || currentUserState.memberName || '';
   const greeting = memberName ? `${memberName}，` : '';
   
-  console.log(`✅ 立即設置處方籤上傳完成狀態 - ${userId}`);
+  console.log(`✅ 立即設置藥單上傳完成狀態 - ${userId}`);
   
   try {
     // 立即回覆成功訊息並提供選項
     const pharmacySelectionMessage = {
       type: 'template' as const,
-      altText: '處方籤接收成功',
+      altText: '藥單接收成功',
       template: {
         type: 'buttons' as const,
-        title: '✅ 處方籤接收成功！',
-        text: `${greeting}已收到您的處方籤，請選擇要配藥的藥局：`,
+        title: '✅ 藥單接收成功！',
+        text: `${greeting}已收到您的藥單，請選擇要配藥的藥局：`,
         actions: [
           {
             type: 'message' as const,
@@ -78,7 +78,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     };
     
     await client.replyMessage(event.replyToken, pharmacySelectionMessage);
-    console.log(`✅ 處方籤接收成功訊息已發送給用戶 ${userId}`);
+    console.log(`✅ 藥單接收成功訊息已發送給用戶 ${userId}`);
     
     // 背景下載圖片（不阻塞用戶操作）
     downloadImageInBackground(client, userId, messageId, fileName);
@@ -89,7 +89,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
     try {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: '✅ 已收到您的處方籤！請使用「搜尋藥局」功能選擇藥局。'
+        text: '✅ 已收到您的藥單！請使用「搜尋藥局」功能選擇藥局。'
       });
     } catch (fallbackError) {
       console.error(`❌ [handleImageUpload] 發送備用訊息也失敗:`, fallbackError);

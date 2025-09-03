@@ -64,8 +64,8 @@ export function createMainMenu(): Message {
             type: 'button',
             action: {
               type: 'message',
-              label: '📷 上傳處方籤',
-              text: '請直接傳送處方籤照片'
+              label: '📷 上傳藥單',
+              text: '請直接傳送藥單照片'
             },
             style: 'secondary',
             margin: 'sm'
