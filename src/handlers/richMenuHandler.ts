@@ -112,13 +112,13 @@ async function handleHerbalNews(event: PostbackEvent, client: Client): Promise<v
   await client.replyMessage(event.replyToken, [
     {
       type: 'image',
-      originalContentUrl: 'https://drive.google.com/uc?export=view&id=1dXI82oQTbxtuOSOM-lx3zachceaTas0B',
-      previewImageUrl: 'https://drive.google.com/uc?export=view&id=1dXI82oQTbxtuOSOM-lx3zachceaTas0B'
+      originalContentUrl: 'https://lh3.googleusercontent.com/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B',
+      previewImageUrl: 'https://lh3.googleusercontent.com/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B'
     },
     {
       type: 'image',
-      originalContentUrl: 'https://drive.google.com/uc?export=view&id=1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY',
-      previewImageUrl: 'https://drive.google.com/uc?export=view&id=1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY'
+      originalContentUrl: 'https://lh3.googleusercontent.com/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY',
+      previewImageUrl: 'https://lh3.googleusercontent.com/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY'
     },
     {
       type: 'text',
