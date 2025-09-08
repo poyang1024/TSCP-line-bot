@@ -98,7 +98,7 @@ export async function handleWebRegister(req: Request, res: Response, client: Cli
   try {
     const { phone, identity, name, address = '', lineUserId } = req.body;
     
-    if (!phone || !identity || !name || !lineUserId) {
+    if (!phone || !name || !lineUserId) {
       res.status(400).json({
         success: false,
         message: '請填寫所有必填欄位'

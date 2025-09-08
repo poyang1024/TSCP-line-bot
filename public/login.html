@@ -484,7 +484,7 @@
             const identity = formData.get('identity').trim();
             const name = formData.get('name').trim();
             
-            if (!phone || !identity || !name) {
+            if (!phone || !name) {
                 showAlert('請填寫所有必填欄位', 'error');
                 return;
             }

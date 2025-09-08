@@ -269,7 +269,7 @@ export async function registerMember(phone: string, identity: string, name: stri
   try {
     const response = await api.post('/register/phone', {
       phone,
-      identity,
+      identity: identity || '',
       name,
       address: address || ''
     });
