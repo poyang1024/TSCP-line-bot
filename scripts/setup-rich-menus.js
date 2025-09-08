@@ -65,7 +65,7 @@ async function createGuestRichMenu() {
     console.log('✅ 訪客圖文選單建立成功，ID:', richMenuId);
 
     // 上傳圖片
-    const imagePath = path.join(__dirname, '../public/guest_richmenu.jpg');
+    const imagePath = path.join(__dirname, '../public/guest_richmenu.png');
     if (fs.existsSync(imagePath)) {
       const imageBuffer = fs.readFileSync(imagePath);
       await client.setRichMenuImage(richMenuId, imageBuffer, 'image/jpeg');
@@ -152,7 +152,7 @@ async function createMemberRichMenu() {
     console.log('✅ 會員圖文選單建立成功，ID:', richMenuId);
 
     // 上傳圖片
-    const imagePath = path.join(__dirname, '../public/member_richmenu.jpg');
+    const imagePath = path.join(__dirname, '../public/member_richmenu.png');
     if (fs.existsSync(imagePath)) {
       const imageBuffer = fs.readFileSync(imagePath);
       await client.setRichMenuImage(richMenuId, imageBuffer, 'image/jpeg');
