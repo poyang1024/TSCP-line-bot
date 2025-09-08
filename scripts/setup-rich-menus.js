@@ -48,7 +48,7 @@ async function createGuestRichMenu() {
           data: 'action=herbal_news'
         }
       },
-      // 使用教學 (下方右)
+      // 了解更多 (下方右)
       {
         bounds: { x: 1667, y: 843, width: 833, height: 843 },
         action: {
@@ -135,7 +135,7 @@ async function createMemberRichMenu() {
           data: 'action=herbal_news'
         }
       },
-      // 使用教學 (下方右)
+      // 了解更多 (下方右)
       {
         bounds: { x: 1667, y: 843, width: 833, height: 843 },
         action: {

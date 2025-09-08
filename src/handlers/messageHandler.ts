@@ -90,7 +90,7 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
         case '功能':
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: '📋 請使用下方的圖文選單來操作各項功能：\n\n🔓 開放功能：\n• 藥師諮詢\n• 中藥新知\n• 使用教學\n\n🔒 會員功能：\n• 中藥預約（需登入）'
+            text: '📋 請使用下方的圖文選單來操作各項功能：\n\n🔓 開放功能：\n• 藥師諮詢\n• 中藥新知\n• 了解更多\n\n🔒 會員功能：\n• 中藥預約（需登入）'
           });
           return { success: true, action: 'show_main_menu' };
           

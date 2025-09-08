@@ -56,7 +56,7 @@ export async function handleFollow(event: FollowEvent, client: Client): Promise<
           },
           {
             type: 'text',
-            text: '• 藥師諮詢 - 專業藥師為您解答\n• 中藥新知 - 最新養生資訊\n• 使用教學 - 詳細操作說明',
+            text: '• 藥師諮詢 - 專業藥師為您解答\n• 中藥新知 - 最新養生資訊\n• 了解更多 - 詳細操作說明',
             wrap: true,
             margin: 'sm',
             color: '#666666'
