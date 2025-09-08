@@ -1,6 +1,6 @@
 import { PostbackEvent, Client, FlexMessage } from '@line/bot-sdk'
 import { verifyUserToken, refreshUserToken } from '../services/jwtService'
-import { getUserState, updateUserTempData, updateUserState, clearOrderStep, isUserInOrderProcess } from '../services/userService'
+import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
 import { updateUserRichMenu } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId } from '../services/websocketService'
@@ -256,9 +256,8 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
 
 // 處理登出
 async function handleLogout(event: PostbackEvent, client: Client, userId: string): Promise<void> {
-  // 清除暫存資料和訂單步驟
-  updateUserTempData(userId, null)
-  clearOrderStep(userId)
+  // 清除暫存資料
+  updateUserTempData(userId, undefined)
   
   // 斷開 WebSocket 連線（如果存在）
   // 注意：在 JWT 模式下，我們無法直接取得 memberId，需要其他方式處理
@@ -268,7 +267,7 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
   
   await client.replyMessage(event.replyToken, {
     type: 'text',
-    text: '👋 您已成功登出\n\n選單已切換為訪客模式，所有進行中的操作已清除。\n\n如需使用會員功能，請重新登入。'
+    text: '👋 您已成功登出\n\n選單已切換為訪客模式，感謝您的使用！\n\n如需使用會員功能，請重新登入。'
   })
 }
 
