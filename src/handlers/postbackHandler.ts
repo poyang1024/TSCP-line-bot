@@ -1,10 +1,11 @@
 import { PostbackEvent, Client } from '@line/bot-sdk';
-import { getUserState, updateUserState } from '../services/userService';
+import { getUserState, updateUserState, isUserInOrderProcess, getOrderStep, clearOrderStep } from '../services/userService';
 import { createOrder, getOrderDetail } from '../services/apiService';
 import { createOrderDetailCard } from '../templates/messageTemplates';
 import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
+import { OrderStep } from '../types';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -38,7 +39,7 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   
   try {
     // 檢查是否正在處理圖片，如果是則阻止其他操作
-    if (userState.currentStep === 'processing_image') {
+    if (userState.currentStep === OrderStep.PROCESSING_IMAGE) {
       const processingTime = Date.now() - (userState.tempData?.processingStartTime || 0);
       const processingMinutes = Math.floor(processingTime / 60000);
       
@@ -47,6 +48,23 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
         text: `⏳ 正在處理您上傳的藥單${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿點選按鈕。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳藥單。`
       });
       return { success: true, action: 'blocked_during_processing' };
+    }
+    
+    // 檢查是否在訂單流程中，對於非訂單相關的操作給予提示
+    const isInOrderProcess = isUserInOrderProcess(userId);
+    const currentOrderStep = getOrderStep(userId);
+    
+    // 訂單相關的操作
+    const orderActions = ['select_pharmacy', 'confirm_order', 'create_order'];
+    // 系統操作（可以打斷訂單流程）
+    const systemActions = ['logout', 'login_required', 'member_center'];
+    
+    if (isInOrderProcess && !orderActions.includes(action || '') && !systemActions.includes(action || '')) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: `⚠️ 您正在進行配藥服務流程。\n\n請完成當前步驟或輸入「取消」來終止流程。\n\n⏰ 流程將在 3 分鐘後自動重設。`
+      });
+      return { success: true, action: 'blocked_during_order_process' };
     }
     
     // 檢查是否為圖文選單的 postback
@@ -141,7 +159,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     hasPrescription
   });
   
-  if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
+  if (userState.currentStep !== OrderStep.PRESCRIPTION_UPLOADED || !hasPrescription) {
     console.log(`❌ 用戶狀態檢查失敗 - 缺少藥單資料`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
@@ -150,9 +168,9 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
     return;
   }
   
-  // 儲存選擇的藥局
+  // 儲存選擇的藥局，進入下一步驟
   updateUserState(userId, {
-    currentStep: 'pharmacy_selected',
+    currentStep: OrderStep.PHARMACY_SELECTED,
     tempData: {
       ...userState.tempData,
       selectedPharmacyId: pharmacyId
@@ -336,16 +354,15 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     if (order) {
       console.log('✅ 訂單建立成功:', order);
       
-      // 清除暫存資料
-      updateUserState(userId, {
-        currentStep: undefined,
-        tempData: undefined
-      });
+      // 清除訂單步驟和暫存資料
+      clearOrderStep(userId);
       
       // 刪除暫存檔案
       try {
-        fs.unlinkSync(userState.tempData.prescriptionFile);
-        console.log('🗑️ 已刪除暫存檔案');
+        if (userState.tempData?.prescriptionFile && !userState.tempData.prescriptionFile.includes('temp_')) {
+          fs.unlinkSync(userState.tempData.prescriptionFile);
+          console.log('🗑️ 已刪除暫存檔案');
+        }
       } catch (error) {
         console.error('❌ 刪除暫存檔案失敗:', error);
       }

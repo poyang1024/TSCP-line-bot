@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Client } from '@line/bot-sdk';
 import { loginMember, registerMember, changePassword, deleteAccount } from '../services/apiService';
-import { updateUserState, getUserState } from '../services/userService';
+import { clearOrderStep } from '../services/userService';
 import { createUserToken } from '../services/jwtService';
 import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { updateUserRichMenu } from '../services/menuManager';
@@ -26,14 +26,8 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       // 建立 JWT Token
       const token = createUserToken(lineUserId, member.user_id, member.access_token, member.name);
       
-      // 更新用戶狀態
-      updateUserState(lineUserId, { 
-        currentStep: undefined, 
-        tempData: undefined,
-        memberId: member.user_id,
-        accessToken: member.access_token,
-        memberName: member.name,
-      });
+      // 清除任何進行中的訂單步驟
+      clearOrderStep(lineUserId);
       
       // 嘗試切換到會員選單
       try {
@@ -69,8 +63,8 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       });
       
     } else {
-      // 登入失敗
-      updateUserState(lineUserId, { currentStep: undefined, tempData: undefined });
+      // 登入失敗，清除任何訂單步驟
+      clearOrderStep(lineUserId);
       
       // 確保選單為訪客模式
       try {
@@ -160,9 +154,9 @@ export async function handleWebRegister(req: Request, res: Response, client: Cli
 // 網頁變更密碼處理
 export async function handleWebChangePassword(req: Request, res: Response, client: Client): Promise<void> {
   try {
-    const { old_password, new_password, lineUserId } = req.body;
+    const { old_password, new_password, lineUserId, token } = req.body;
     
-    if (!old_password || !new_password || !lineUserId) {
+    if (!old_password || !new_password || !lineUserId || !token) {
       res.status(400).json({
         success: false,
         message: '缺少必要參數'
@@ -179,10 +173,11 @@ export async function handleWebChangePassword(req: Request, res: Response, clien
       return;
     }
     
-    // 取得用戶狀態中的 access token
-    const userState = getUserState(lineUserId);
+    // 從 JWT token 中解析 access token
+    const { verifyUserToken } = await import('../services/jwtService');
+    const userSession = verifyUserToken(token);
     
-    if (!userState.accessToken) {
+    if (!userSession || userSession.lineId !== lineUserId) {
       res.status(401).json({
         success: false,
         message: '請先登入'
@@ -191,17 +186,11 @@ export async function handleWebChangePassword(req: Request, res: Response, clien
     }
     
     // 呼叫變更密碼 API
-    const result = await changePassword(userState.accessToken, old_password, new_password);
+    const result = await changePassword(userSession.accessToken, old_password, new_password);
     
     if (result.success) {
-      // 自動登出：清除用戶狀態
-      updateUserState(lineUserId, {
-        currentStep: undefined,
-        tempData: undefined,
-        memberId: undefined,
-        accessToken: undefined,
-        memberName: undefined
-      });
+      // 自動登出：清除訂單步驟
+      clearOrderStep(lineUserId);
       
       // 斷開 WebSocket 連線
       disconnectUserWebSocket(lineUserId);
@@ -251,9 +240,9 @@ export async function handleWebChangePassword(req: Request, res: Response, clien
 // 網頁刪除帳號處理
 export async function handleWebDeleteAccount(req: Request, res: Response, client: Client): Promise<void> {
   try {
-    const { lineUserId } = req.body;
+    const { lineUserId, token } = req.body;
     
-    if (!lineUserId) {
+    if (!lineUserId || !token) {
       res.status(400).json({
         success: false,
         message: '缺少必要參數'
@@ -261,10 +250,11 @@ export async function handleWebDeleteAccount(req: Request, res: Response, client
       return;
     }
     
-    // 取得用戶狀態中的 access token
-    const userState = getUserState(lineUserId);
+    // 從 JWT token 中解析 access token
+    const { verifyUserToken } = await import('../services/jwtService');
+    const userSession = verifyUserToken(token);
     
-    if (!userState.accessToken) {
+    if (!userSession || userSession.lineId !== lineUserId) {
       res.status(401).json({
         success: false,
         message: '請先登入'
@@ -273,17 +263,11 @@ export async function handleWebDeleteAccount(req: Request, res: Response, client
     }
     
     // 呼叫刪除帳號 API
-    const result = await deleteAccount(userState.accessToken);
+    const result = await deleteAccount(userSession.accessToken);
     
     if (result.success) {
-      // 自動登出：清除用戶狀態
-      updateUserState(lineUserId, {
-        currentStep: undefined,
-        tempData: undefined,
-        memberId: undefined,
-        accessToken: undefined,
-        memberName: undefined
-      });
+      // 自動登出：清除訂單步驟
+      clearOrderStep(lineUserId);
       
       // 斷開 WebSocket 連線
       disconnectUserWebSocket(lineUserId);

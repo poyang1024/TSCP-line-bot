@@ -1,5 +1,6 @@
 import { MessageEvent, Client, ImageMessage } from '@line/bot-sdk';
-import { getUserState, updateUserState } from '../services/userService';
+import { getUserState, updateUserState, setOrderStep } from '../services/userService';
+import { OrderStep } from '../types';
 import fs from 'fs';
 import path from 'path';
 
@@ -21,7 +22,7 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
   }
   
   // 檢查是否正在處理中，防止重複上傳
-  if (userState.currentStep === 'processing_image') {
+  if (userState.currentStep === OrderStep.PROCESSING_IMAGE) {
     console.log(`📷 [handleImageUpload] 用戶正在處理中，忽略重複請求`);
     await client.replyMessage(event.replyToken, {
       type: 'text',
@@ -34,17 +35,18 @@ export async function handleImageUpload(event: MessageEvent & { message: ImageMe
   const messageId = event.message.id;
   const fileName = `prescription_${userId}_${Date.now()}.jpg`;
   
-  // 立即設置上傳完成狀態，不等待實際下載
+  // 立即設置上傳完成狀態，開始訂單流程計時
   const currentUserState = getUserState(userId);
   updateUserState(userId, {
-    currentStep: 'prescription_uploaded',
+    currentStep: OrderStep.PRESCRIPTION_UPLOADED,
     tempData: {
       ...currentUserState.tempData,
       prescriptionFile: `temp_${messageId}`, // 臨時路徑，實際下載在背景進行
       prescriptionFileName: fileName,
       prescriptionBuffer: null,
       messageId: messageId, // 儲存 messageId 供後續使用
-      processingStartTime: undefined
+      processingStartTime: undefined,
+      orderStepStartTime: Date.now() // 開始訂單流程計時
     }
   });
   

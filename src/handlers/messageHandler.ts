@@ -1,10 +1,11 @@
 import { MessageEvent, Client, TextMessage, ImageMessage } from '@line/bot-sdk';
-import { getUserState, updateUserState, updateUserTempData, clearUserTempData, clearUserState } from '../services/userService';
+import { getUserState, updateUserState, updateUserTempData, clearUserTempData, clearUserState, isUserInOrderProcess, getOrderStep, clearOrderStep } from '../services/userService';
 import { handleLogin, createLoginMenu, handlePasswordChange } from './loginHandler';
 import { handleImageUpload } from './uploadHandler';
 import { handlePharmacySearch } from './pharmacyHandler';
 import { handleOrderInquiry } from './orderHandler';
 import { updateUserRichMenu } from '../services/menuManager';
+import { OrderStep } from '../types';
 
 export async function handleMessage(event: MessageEvent, client: Client): Promise<{ success: boolean; action?: string; error?: string }> {
   const userId = event.source.userId!;
@@ -12,7 +13,7 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
   
   try {
     // 檢查是否正在處理圖片，如果是則阻止其他操作
-    if (userState.currentStep === 'processing_image') {
+    if (userState.currentStep === OrderStep.PROCESSING_IMAGE) {
       const processingTime = Date.now() - (userState.tempData?.processingStartTime || 0);
       const processingMinutes = Math.floor(processingTime / 60000);
       
@@ -21,6 +22,41 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
         text: `⏳ 正在處理您上傳的藥單${processingMinutes > 0 ? ` (${processingMinutes}分鐘)` : ''}...\n\n請稍候，處理期間請勿進行其他操作。\n\n如果超過 2 分鐘仍未完成，您可以重新上傳藥單。`
       });
       return { success: true, action: 'blocked_during_processing' };
+    }
+    
+    // 檢查是否在訂單流程中，如果是則阻止除了特定命令外的其他操作
+    const isInOrderProcess = isUserInOrderProcess(userId);
+    const currentOrderStep = getOrderStep(userId);
+    
+    if (isInOrderProcess && event.message.type === 'text') {
+      const text = event.message.text.trim();
+      
+      // 允許的取消命令
+      const cancelCommands = ['取消', '重新開始', '主選單', '選單', '登出', 'logout'];
+      
+      if (cancelCommands.includes(text)) {
+        clearOrderStep(userId);
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '🔄 已取消當前的訂單流程\n\n您可以重新開始配藥服務或選擇其他功能。'
+        });
+        return { success: true, action: 'order_process_cancelled' };
+      }
+      
+      // 在訂單流程中，提示用戶完成當前步驟
+      const stepMessages = {
+        [OrderStep.PRESCRIPTION_UPLOADED]: '您正在進行配藥服務，目前已上傳藥單。\n\n請選擇藥局以繼續下一步驟。',
+        [OrderStep.PHARMACY_SELECTED]: '您正在進行配藥服務，目前已選擇藥局。\n\n請選擇取藥方式以完成訂單。',
+      };
+      
+      const stepMessage = stepMessages[currentOrderStep as keyof typeof stepMessages] || 
+        '您正在進行配藥服務。';
+      
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: `⚠️ ${stepMessage}\n\n如需取消當前流程，請輸入「取消」或「重新開始」。\n\n⏰ 訂單流程將在 3 分鐘後自動重設。`
+      });
+      return { success: true, action: 'blocked_during_order_process' };
     }
     
     // 確保用戶有正確的選單（根據登入狀態）

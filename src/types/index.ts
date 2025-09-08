@@ -1,4 +1,4 @@
-// 用戶暫存資料
+// 用戶暫存資料 (僅用於訂單流程)
 export interface UserTempData {
   waitingFor?: string;
   memberInfo?: {
@@ -18,11 +18,14 @@ export interface UserTempData {
     id: number;
     name: string;
   };
+  selectedPharmacyId?: string;      // 選中的藥局 ID
   isDelivery?: boolean;
+  processingStartTime?: number;     // 開始處理時間
+  orderStepStartTime?: number;      // 訂單步驟開始時間
   [key: string]: any;              // 保持彈性
 }
 
-// 用戶狀態
+// 用戶狀態 (主要為向後相容，登入狀態現在由 JWT 管理)
 export interface UserState {
   userId: string;
   memberId?: number;
@@ -32,6 +35,18 @@ export interface UserState {
   loginMethod?: 'account' | 'line';
   tempData?: UserTempData;
 }
+
+// 訂單步驟枚舉
+export enum OrderStep {
+  NONE = '',
+  PRESCRIPTION_UPLOADED = 'prescription_uploaded',
+  PHARMACY_SELECTED = 'pharmacy_selected',
+  ORDER_CONFIRMED = 'order_confirmed',
+  PROCESSING_IMAGE = 'processing_image'
+}
+
+// 訂單步驟超時設定（3分鐘）
+export const ORDER_STEP_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
 
 // 會員資料
 export interface Member {
