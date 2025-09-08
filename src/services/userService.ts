@@ -24,13 +24,41 @@ export function getUserStateFromToken(lineId: string, token?: string): UserState
     userId: lineId,
     memberId: decoded.memberId,
     accessToken: decoded.accessToken,
+    memberName: decoded.memberName,
     currentStep: undefined,
     loginMethod: 'account',
     tempData: userTempData.get(lineId)
   };
 }
 
-// 取得用戶狀態 (向後相容)
+// 檢查用戶是否已透過 Web 登入
+export async function checkWebLoginStatus(userId: string): Promise<UserState | null> {
+  try {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://tscp-line-bot.vercel.app' 
+      : `http://localhost:${process.env.PORT || 3000}`;
+      
+    const response = await fetch(`${baseUrl}/auth/status?userId=${userId}`);
+    const result = await response.json() as any;
+    
+    if (result.success && result.isLoggedIn) {
+      return {
+        userId: userId,
+        memberId: result.user.memberId,
+        memberName: result.user.memberName,
+        currentStep: 'menu',
+        loginMethod: 'account'
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('檢查 Web 登入狀態失敗:', error);
+    return null;
+  }
+}
+
+// 取得用戶狀態 (同步版本，保持向後相容)
 export function getUserState(userId: string): UserState {
   const storedState = userStates.get(userId) || {};
   return {
@@ -38,6 +66,33 @@ export function getUserState(userId: string): UserState {
     tempData: userTempData.get(userId),
     ...storedState
   };
+}
+
+// 輔助函數：確保用戶狀態是最新的（包含 Web 登入檢查）
+export async function ensureUserState(userId: string): Promise<void> {
+  const currentState = getUserState(userId);
+  
+  // 如果已經有登入狀態，就不需要再檢查
+  if (currentState.memberId && currentState.accessToken) {
+    return;
+  }
+  
+  // 檢查 Web 登入狀態
+  try {
+    const webLoginState = await checkWebLoginStatus(userId);
+    if (webLoginState) {
+      updateUserState(userId, {
+        memberId: webLoginState.memberId,
+        memberName: webLoginState.memberName,
+        accessToken: webLoginState.accessToken,
+        loginMethod: 'account',
+        currentStep: 'menu'
+      });
+      console.log(`🔄 自動恢復用戶登入狀態: ${userId}`);
+    }
+  } catch (error) {
+    console.error('檢查 Web 登入狀態失敗:', error);
+  }
 }
 
 // 更新用戶暫存資料
@@ -57,27 +112,7 @@ export function clearUserTempData(userId: string): void {
   console.log(`🗑️ Cleared temp data for LINE User ${userId}`);
 }
 
-// 檢查用戶是否已登入 (從 JWT)
-export function isUserLoggedInFromToken(lineId: string, token?: string): boolean {
-  if (!token) return false;
-  
-  const decoded = verifyUserToken(token);
-  return !!(decoded && decoded.lineId === lineId && decoded.memberId && decoded.accessToken);
-}
-
-// 向後相容的檢查方法
-export function isUserLoggedIn(userId: string): boolean {
-  return false; // 在 JWT 模式下，總是返回 false，需要傳入 token
-}
-
-// 清除用戶狀態 (保留向後相容)
-export function clearUserState(userId: string): void {
-  clearUserTempData(userId);
-  userStates.delete(userId);
-  console.log(`🧹 Cleared all state for user ${userId}`);
-}
-
-// 更新用戶狀態 (保留向後相容)
+// 更新用戶狀態
 export function updateUserState(userId: string, updates: Partial<UserState>): void {
   const currentState = userStates.get(userId) || {};
   const newState = { ...currentState, ...updates };
@@ -92,9 +127,23 @@ export function updateUserState(userId: string, updates: Partial<UserState>): vo
   console.log(`🔄 Updated user state for ${userId}:`, newState);
 }
 
-// 根據 Member ID 查找 LINE User ID（在 JWT 模式下較難實現）
-export function findUserIdByMemberId(memberId: number): string | null {
-  // 在 JWT 模式下，這個功能需要其他方式實現
-  // 或者使用外部儲存（如 Redis）來維護這個映射
-  return null;
+// 清除用戶狀態
+export function clearUserState(userId: string): void {
+  clearUserTempData(userId);
+  userStates.delete(userId);
+  console.log(`🧹 Cleared all state for user ${userId}`);
+}
+
+// 檢查用戶是否已登入 (從 JWT)
+export function isUserLoggedInFromToken(lineId: string, token?: string): boolean {
+  if (!token) return false;
+  
+  const decoded = verifyUserToken(token);
+  return !!(decoded && decoded.lineId === lineId && decoded.memberId && decoded.accessToken);
+}
+
+// 向後相容的檢查方法
+export function isUserLoggedIn(userId: string): boolean {
+  const state = getUserState(userId);
+  return !!(state.memberId && state.accessToken);
 }

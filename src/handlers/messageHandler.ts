@@ -1,5 +1,5 @@
 import { MessageEvent, Client, TextMessage, ImageMessage } from '@line/bot-sdk';
-import { getUserState, updateUserState, updateUserTempData, clearUserTempData, clearUserState } from '../services/userService';
+import { getUserState, ensureUserState, updateUserState, updateUserTempData, clearUserTempData, clearUserState } from '../services/userService';
 import { handleLogin, createLoginMenu, handlePasswordChange } from './loginHandler';
 import { handleImageUpload } from './uploadHandler';
 import { handlePharmacySearch } from './pharmacyHandler';
@@ -8,9 +8,13 @@ import { updateUserRichMenu } from '../services/menuManager';
 
 export async function handleMessage(event: MessageEvent, client: Client): Promise<{ success: boolean; action?: string; error?: string }> {
   const userId = event.source.userId!;
+  
+  // 確保用戶狀態是最新的（包含 Web 登入檢查）
+  await ensureUserState(userId);
   const userState = getUserState(userId);
   
   try {
+    
     // 檢查是否正在處理圖片，如果是則阻止其他操作
     if (userState.currentStep === 'processing_image') {
       const processingTime = Date.now() - (userState.tempData?.processingStartTime || 0);

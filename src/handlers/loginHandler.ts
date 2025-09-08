@@ -1,5 +1,5 @@
 import { MessageEvent, PostbackEvent, Client, TextMessage, FlexMessage } from '@line/bot-sdk';
-import { getUserState, updateUserState, updateUserTempData } from '../services/userService';
+import { getUserState, ensureUserState, updateUserState, updateUserTempData } from '../services/userService';
 import { loginMember, changePassword, loginWithLine } from '../services/apiService';
 import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { createMainMenu } from '../templates/messageTemplates';
@@ -216,6 +216,27 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
   const data = new URLSearchParams(event.postback.data);
   const action = data.get('action');
 
+  // 首先確保用戶狀態是最新的
+  await ensureUserState(userId);
+  const currentState = getUserState(userId);
+  
+  if (currentState.memberId && currentState.accessToken) {
+    console.log('用戶已登入，跳過登入流程');
+    
+    // 更新圖文選單
+    try {
+      await updateUserRichMenu(client, userId, true);
+    } catch (menuError) {
+      console.error('更新圖文選單失敗:', menuError);
+    }
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: `🎉 歡迎回來，${currentState.memberName}！\n\n您已成功登入，現在可以使用所有會員功能。`
+    });
+    return;
+  }
+
   switch (action) {
     case 'line_direct_login':
       console.log('🚀 開始處理 LINE 直接登入');
@@ -333,7 +354,11 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
 
 export async function handleLogin(event: MessageEvent, client: Client): Promise<void> {
   const userId = event.source.userId!;
+  
+  // 確保用戶狀態是最新的
+  await ensureUserState(userId);
   const userState = getUserState(userId);
+  
   const message = event.message as TextMessage;
   const text = message.text.trim();
   
@@ -480,7 +505,7 @@ async function performLogin(
 // 處理修改密碼流程 (開發環境)
 export async function handlePasswordChange(event: MessageEvent, client: Client): Promise<void> {
   const userId = event.source.userId!;
-  const userState = getUserState(userId);
+  const userState = getUserState(userId); // 使用同步版本
   const message = event.message as TextMessage;
   const text = message.text.trim();
   

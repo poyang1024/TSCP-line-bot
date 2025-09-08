@@ -1,10 +1,13 @@
 import { MessageEvent, Client } from '@line/bot-sdk';
-import { getUserState } from '../services/userService';
+import { getUserState, ensureUserState } from '../services/userService';
 import { getOrders } from '../services/apiService';
 import { createOrderDetailCard } from '../templates/messageTemplates';
 
 export async function handleOrderInquiry(event: MessageEvent, client: Client): Promise<void> {
   const userId = event.source.userId!;
+  
+  // 確保用戶狀態是最新的
+  await ensureUserState(userId);
   const userState = getUserState(userId);
   
   console.log(`📋 處理訂單查詢: userId=${userId}, accessToken=${!!userState.accessToken}, memberId=${userState.memberId}`);

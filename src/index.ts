@@ -2,12 +2,14 @@ import express from 'express';
 import { middleware, Client, WebhookEvent, MessageEvent, PostbackEvent } from '@line/bot-sdk';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { handleMessage } from './handlers/messageHandler';
 import { handlePostback } from './handlers/postbackHandler';
 import { handleFollow } from './handlers/followHandler';
 import { initWebSocket } from './services/websocketService';
 import { setupRoutes } from './routes';
 import { initializeRichMenus } from './services/menuManager';
+import authRoutes from './routes/authRoutes';
 
 dotenv.config();
 
@@ -40,6 +42,13 @@ app.use('/webhook', express.raw({ type: 'application/json' }), (req, res, next) 
 });
 
 app.use(express.json());
+app.use(cookieParser());
+
+// 靜態文件服務
+app.use(express.static('public'));
+
+// 認證路由
+app.use('/auth', authRoutes);
 
 // 添加請求日誌中間件
 app.use((req, res, next) => {
