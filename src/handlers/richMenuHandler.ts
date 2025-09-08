@@ -112,13 +112,13 @@ async function handleHerbalNews(event: PostbackEvent, client: Client): Promise<v
   await client.replyMessage(event.replyToken, [
     {
       type: 'image',
-      originalContentUrl: 'https://drive.google.com/file/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B/view?usp=sharing', // 替換成實際的第一張圖片URL
-      previewImageUrl: 'https://drive.google.com/file/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B/view?usp=sharing' // 使用相同的圖片URL
+      originalContentUrl: 'https://drive.google.com/uc?export=view&id=1dXI82oQTbxtuOSOM-lx3zachceaTas0B',
+      previewImageUrl: 'https://drive.google.com/uc?export=view&id=1dXI82oQTbxtuOSOM-lx3zachceaTas0B'
     },
     {
       type: 'image',
-      originalContentUrl: 'https://drive.google.com/file/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY/view?usp=sharing', // 替換成實際的第二張圖片URL
-      previewImageUrl: 'https://drive.google.com/file/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY/view?usp=sharing' // 使用相同的圖片URL
+      originalContentUrl: 'https://drive.google.com/uc?export=view&id=1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY',
+      previewImageUrl: 'https://drive.google.com/uc?export=view&id=1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY'
     },
     {
       type: 'text',
