@@ -109,17 +109,29 @@ async function handlePharmacistConsultation(event: PostbackEvent, client: Client
 
 // 處理中藥新知（開放功能）
 async function handleHerbalNews(event: PostbackEvent, client: Client): Promise<void> {
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '📚 💊🇹🇼 台灣第一方：加味逍遙散🌿，除了中醫師愛用 👩‍⚕️🧑‍⚕️，藥局也有非處方藥喔✨\n\n咦？藥盒上寫著「征忡不寧」🤔，到底是什麼意思？\n\n讓藥師來告訴你吧👩‍🔬💕'
-  })
+  await client.replyMessage(event.replyToken, [
+    {
+      type: 'image',
+      originalContentUrl: 'https://drive.google.com/file/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B/view?usp=drive_link', // 替換成實際的第一張圖片URL
+      previewImageUrl: 'https://drive.google.com/file/d/1dXI82oQTbxtuOSOM-lx3zachceaTas0B/view?usp=drive_link' // 使用相同的圖片URL
+    },
+    {
+      type: 'image',
+      originalContentUrl: 'https://drive.google.com/file/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY/view?usp=drive_link', // 替換成實際的第二張圖片URL
+      previewImageUrl: 'https://drive.google.com/file/d/1Aw7NWncbUzCuJ0DgFQ04VRUw8IRYmtXY/view?usp=drive_link' // 使用相同的圖片URL
+    },
+    {
+      type: 'text',
+      text: '📚 💊🇹🇼 台灣第一方：加味逍遙散🌿，除了中醫師愛用 👩‍⚕️🧑‍⚕️，藥局也有非處方藥喔✨\n\n咦？藥盒上寫著「征忡不寧」🤔，到底是什麼意思？\n\n讓藥師來告訴你吧👩‍🔬💕'
+    }
+  ])
 }
 
 // 處理了解更多（開放功能）
 async function handleTutorial(event: PostbackEvent, client: Client): Promise<void> {
   await client.replyMessage(event.replyToken, {
     type: 'text',
-    text: '📖 了解更多\n\n 可點擊：https://portaly.cc/tscptw 了解更多'
+    text: '📖 了解更多\n\n可點擊：https://portaly.cc/tscptw 了解更多'
   })
 }
 
