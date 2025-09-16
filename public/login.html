@@ -483,6 +483,7 @@
             const phone = formData.get('phone').trim();
             const identity = formData.get('identity').trim();
             const name = formData.get('name').trim();
+            const address = formData.get('address').trim();
             
             if (!phone || !name) {
                 showAlert('請填寫所有必填欄位', 'error');
@@ -490,18 +491,28 @@
             }
             
             try {
+                // 建立請求資料，只包含有值的欄位
+                const requestData = {
+                    phone: phone,
+                    name: name,
+                    lineUserId: lineUserId
+                };
+                
+                // 只有當選填欄位有值時才加入請求資料
+                if (identity) {
+                    requestData.identity = identity;
+                }
+                
+                if (address) {
+                    requestData.address = address;
+                }
+                
                 const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        phone: phone,
-                        identity: identity,
-                        name: name,
-                        address: formData.get('address') || '',
-                        lineUserId: lineUserId
-                    })
+                    body: JSON.stringify(requestData)
                 });
                 
                 const result = await response.json();

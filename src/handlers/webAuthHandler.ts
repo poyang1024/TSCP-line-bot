@@ -96,7 +96,7 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
 // 網頁註冊處理
 export async function handleWebRegister(req: Request, res: Response, client: Client): Promise<void> {
   try {
-    const { phone, identity, name, address = '', lineUserId } = req.body;
+    const { phone, identity, name, address, lineUserId } = req.body;
     
     if (!phone || !name || !lineUserId) {
       res.status(400).json({
@@ -107,7 +107,10 @@ export async function handleWebRegister(req: Request, res: Response, client: Cli
     }
     
     // 驗證輸入長度
-    if (phone.length > 15 || identity.length > 25 || name.length > 50 || address.length > 255) {
+    if (phone.length > 15 || 
+        (identity && identity.length > 25) || 
+        name.length > 50 || 
+        (address && address.length > 255)) {
       res.status(400).json({
         success: false,
         message: '輸入資料長度超過限制'
@@ -115,7 +118,7 @@ export async function handleWebRegister(req: Request, res: Response, client: Cli
       return;
     }
     
-    // 呼叫註冊 API
+    // 呼叫註冊 API，只傳遞有值的選填欄位
     const result = await registerMember(phone, identity, name, address);
     
     if (result.success) {

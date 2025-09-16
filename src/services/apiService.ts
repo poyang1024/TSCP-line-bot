@@ -267,12 +267,22 @@ export async function createOrder(token: string, orderData: any): Promise<Order 
 // 會員註冊
 export async function registerMember(phone: string, identity: string, name: string, address?: string): Promise<{ success: boolean; message?: string }> {
   try {
-    const response = await api.post('/register/phone', {
+    // 建立請求資料，只包含有值的欄位
+    const requestData: any = {
       phone,
-      identity: identity || '',
-      name,
-      address: address || ''
-    });
+      name
+    };
+    
+    // 只有當選填欄位有值時才加入請求資料
+    if (identity && identity.trim() !== '') {
+      requestData.identity = identity;
+    }
+    
+    if (address && address.trim() !== '') {
+      requestData.address = address;
+    }
+    
+    const response = await api.post('/register/phone', requestData);
     
     if (response.data.success) {
       return { success: true };
