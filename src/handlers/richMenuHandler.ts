@@ -156,7 +156,7 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
   // 首先嘗試驗證 JWT token
   if (token) {
     userSession = verifyUserToken(token)
-    if (userSession && userSession.lineId !== userId) {
+    if (userSession && userSession.l !== userId) {  // lineId -> l
       userSession = null // token 不屬於當前用戶
     }
   }
@@ -213,14 +213,14 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
         contents: [
           {
             type: 'text',
-            text: `會員：${userSession.memberName}`,
+            text: `會員：${userSession.n}`,  // memberName -> n
             weight: 'bold',
             size: 'lg',
             margin: 'md'
           },
           {
             type: 'text',
-            text: `ID：${userSession.memberId}`,
+            text: `ID：${userSession.m}`,  // memberId -> m
             size: 'sm',
             color: '#666666',
             margin: 'sm'
@@ -306,7 +306,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
   // 首先嘗試驗證 JWT token
   if (token) {
     userSession = verifyUserToken(token)
-    if (userSession && userSession.lineId !== userId) {
+    if (userSession && userSession.l !== userId) {  // lineId -> l
       userSession = null // token 不屬於當前用戶
     }
   }
@@ -356,7 +356,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     if (orders.length === 0) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`
+        text: `📋 ${userSession.n || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`  // memberName -> n
       })
       return
     }
@@ -370,7 +370,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       // 先發送概要訊息
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單記錄，以下是最近的 ${recentOrders.length} 筆訂單：`
+        text: `📋 ${userSession.n || '會員'}，找到 ${orders.length} 筆訂單記錄，以下是最近的 ${recentOrders.length} 筆訂單：`  // memberName -> n
       })
       
       // 然後逐一發送訂單卡片
@@ -387,7 +387,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       console.error('建立訂單卡片錯誤:', cardCreationError)
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。`
+        text: `📋 ${userSession.n || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。`  // memberName -> n
       })
     }
     
@@ -409,7 +409,7 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
   // 首先嘗試驗證 JWT token
   if (token) {
     userSession = verifyUserToken(token)
-    if (userSession && userSession.lineId !== userId) {
+    if (userSession && userSession.l !== userId) {  // lineId -> l
       userSession = null // token 不屬於當前用戶
     }
   }
@@ -445,14 +445,14 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
   updateUserTempData(userId, {
     waitingFor: 'prescription_upload',
     memberInfo: {
-      memberId: userSession.memberId,
-      memberName: userSession.memberName,
-      accessToken: userSession.accessToken
+      memberId: userSession.m,  // memberId -> m
+      memberName: userSession.n, // memberName -> n
+      accessToken: userSession.t // accessToken -> t
     }
   })
   
   // 提示用戶上傳藥單
-  const memberName = userSession.memberName || ''
+  const memberName = userSession.n || ''  // memberName -> n
   await client.replyMessage(event.replyToken, {
     type: 'text',
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
