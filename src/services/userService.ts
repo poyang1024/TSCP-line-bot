@@ -16,15 +16,15 @@ export function getUserStateFromToken(lineId: string, token?: string): UserState
   }
   
   const decoded = verifyUserToken(token);
-  if (!decoded || decoded.lineId !== lineId) {
+  if (!decoded || decoded.l !== lineId) {  // lineId -> l
     return baseState;
   }
   
   return {
     userId: lineId,
-    memberId: decoded.memberId,
-    accessToken: decoded.accessToken,
-    memberName: decoded.memberName,
+    memberId: decoded.m,      // memberId -> m
+    accessToken: decoded.t,   // accessToken -> t
+    memberName: decoded.n,    // memberName -> n
     currentStep: undefined,
     loginMethod: 'account',
     tempData: userTempData.get(lineId)
@@ -134,16 +134,23 @@ export function clearUserState(userId: string): void {
   console.log(`🧹 Cleared all state for user ${userId}`);
 }
 
-// 檢查用戶是否已登入 (從 JWT)
+// 檢查用戶是否已登入 (支援 JWT 優先，記憶體狀態作為備用)
+export function isUserLoggedIn(userId: string, jwtToken?: string): boolean {
+  // 優先使用 JWT Token 檢查
+  if (jwtToken) {
+    const decoded = verifyUserToken(jwtToken);
+    return !!(decoded && decoded.l === userId && decoded.m && decoded.t);  // 使用緊湊格式欄位
+  }
+  
+  // 備用：檢查記憶體狀態
+  const state = getUserState(userId);
+  return !!(state.memberId && state.accessToken);
+}
+
+// 向後相容的檢查方法 (僅使用 JWT)
 export function isUserLoggedInFromToken(lineId: string, token?: string): boolean {
   if (!token) return false;
   
   const decoded = verifyUserToken(token);
-  return !!(decoded && decoded.lineId === lineId && decoded.memberId && decoded.accessToken);
-}
-
-// 向後相容的檢查方法
-export function isUserLoggedIn(userId: string): boolean {
-  const state = getUserState(userId);
-  return !!(state.memberId && state.accessToken);
+  return !!(decoded && decoded.l === lineId && decoded.m && decoded.t);  // 使用緊湊格式欄位
 }

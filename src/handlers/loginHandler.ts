@@ -442,21 +442,30 @@ async function performLogin(
       // 建立 WebSocket 連線
       connectUserWebSocket(userId, member.user_id, member.access_token);
       
-      // 發送簡化的登入成功訊息
-      const successMessage = {
-        type: 'text' as const,
-        text: `🎉 登入成功！\n\n歡迎回來，${member.name}！\n\n✅ 已切換到會員模式\n✅ 現在可以使用中藥預約功能\n✅ 請使用下方選單開始服務`
-      };
-
+      // 創建包含 JWT 的會員功能選單
+      const memberMenuWithJWT = createMemberMenuWithJWT(token, member.name);
+      
       try {
-        await client.replyMessage(event.replyToken, successMessage);
-        console.log(`✅ 登入成功訊息已發送`);
+        await client.replyMessage(event.replyToken, [
+          {
+            type: 'text' as const,
+            text: `🎉 登入成功！\n\n歡迎回來，${member.name}！\n\n✅ 已切換到會員模式\n✅ 現在可以使用所有會員功能`
+          },
+          memberMenuWithJWT
+        ]);
+        console.log(`✅ 登入成功訊息和會員選單已發送`);
       } catch (replyError) {
         console.error(`❌ 發送登入成功訊息失敗:`, replyError);
         // 如果回覆失敗，嘗試推送訊息
         try {
-          await client.pushMessage(userId, successMessage);
-          console.log(`✅ 登入成功訊息已推送`);
+          await client.pushMessage(userId, [
+            {
+              type: 'text' as const,
+              text: `🎉 登入成功！\n\n歡迎回來，${member.name}！\n\n✅ 已切換到會員模式\n✅ 現在可以使用所有會員功能`
+            },
+            memberMenuWithJWT
+          ]);
+          console.log(`✅ 登入成功訊息和會員選單已推送`);
         } catch (pushError) {
           console.error(`❌ 推送登入成功訊息也失敗:`, pushError);
         }
@@ -641,4 +650,104 @@ async function performPasswordChange(
       text: '❌ 系統錯誤，請稍後再試。\n\n如果問題持續發生，請聯絡客服。'
     });
   }
+}
+
+// 創建包含 JWT 的會員功能選單
+function createMemberMenuWithJWT(jwtToken: string, memberName: string): FlexMessage {
+  return {
+    type: 'flex' as const,
+    altText: '會員功能選單',
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: `👤 ${memberName}`,
+            weight: 'bold',
+            size: 'lg',
+            color: '#333333'
+          },
+          {
+            type: 'text',
+            text: '會員功能',
+            size: 'sm',
+            color: '#666666'
+          }
+        ],
+        backgroundColor: '#F0F8FF',
+        paddingAll: 'md'
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '🏥 會員中心',
+              data: `a=mc&j=${jwtToken}`
+            },
+            style: 'primary',
+            color: '#4A90E2'
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '📋 查看訂單',
+              data: `a=vo&j=${jwtToken}`
+            },
+            style: 'secondary',
+            margin: 'sm'
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '➕ 建立訂單',
+              data: `a=co&j=${jwtToken}`
+            },
+            style: 'secondary',
+            margin: 'sm'
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '🏪 查看藥局',
+              data: `a=vp&j=${jwtToken}`
+            },
+            style: 'secondary',
+            margin: 'sm'
+          }
+        ],
+        spacing: 'sm'
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'separator',
+            margin: 'md'
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '🚪 登出',
+              data: `a=logout&j=${jwtToken}`
+            },
+            style: 'link',
+            color: '#999999',
+            margin: 'sm'
+          }
+        ]
+      }
+    }
+  };
 }

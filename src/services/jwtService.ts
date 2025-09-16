@@ -3,6 +3,21 @@ import jwt from 'jsonwebtoken'
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production'
 const JWT_EXPIRES_IN = '7d' // 7天過期
 
+// 緊湊版的 JWT payload 結構（減少欄位名稱長度以符合 LINE Rich Menu 300字符限制）
+export interface CompactUserSession {
+  l: string    // lineId
+  m: number    // memberId
+  t: string    // accessToken
+  n: string    // memberName
+  exp?: number
+}
+
+export interface JWTPayload extends CompactUserSession {
+  iat: number
+  exp: number
+}
+
+// 相容性介面（舊版格式）
 export interface UserSession {
   lineId: string
   memberId: number
@@ -11,18 +26,13 @@ export interface UserSession {
   exp?: number
 }
 
-export interface JWTPayload extends UserSession {
-  iat: number
-  exp: number
-}
-
-// 建立 JWT Token
+// 建立 JWT Token（使用緊湊格式）
 export function createUserToken(lineId: string, memberId: number, accessToken: string, memberName: string): string {
-  const payload: UserSession = {
-    lineId,
-    memberId,
-    accessToken,
-    memberName
+  const payload: CompactUserSession = {
+    l: lineId,       // lineId -> l
+    m: memberId,     // memberId -> m
+    t: accessToken,  // accessToken -> t
+    n: memberName    // memberName -> n
   }
   
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
@@ -54,12 +64,12 @@ export function refreshUserToken(oldToken: string): string | null {
     return null
   }
   
-  // 建立新的 Token
+  // 建立新的 Token（使用緊湊格式欄位）
   return createUserToken(
-    decoded.lineId,
-    decoded.memberId,
-    decoded.accessToken,
-    decoded.memberName
+    decoded.l,  // lineId -> l
+    decoded.m,  // memberId -> m
+    decoded.t,  // accessToken -> t
+    decoded.n   // memberName -> n
   )
 }
 

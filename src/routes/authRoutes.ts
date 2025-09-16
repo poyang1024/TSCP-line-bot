@@ -16,7 +16,7 @@ router.get('/login', jwtMiddleware, (req: Request, res: Response) => {
   }
   
   // 如果已經登入，直接重導向到成功頁面
-  if (req.user && req.user.lineId === userId) {
+  if (req.user && req.user.l === userId) {  // lineId -> l
     return res.redirect(`/auth/success?userId=${userId}`);
   }
   
@@ -240,7 +240,7 @@ router.get('/success', jwtMiddleware, (req: Request, res: Response) => {
   }
   
   // 檢查是否已登入
-  if (!req.user || req.user.lineId !== userId) {
+  if (!req.user || req.user.l !== userId) {  // lineId -> l
     return res.redirect(`/login?userId=${userId}`);
   }
   
@@ -297,12 +297,12 @@ router.get('/success', jwtMiddleware, (req: Request, res: Response) => {
         <div class="container">
             <div class="success-icon">🎉</div>
             <h1>登入成功！</h1>
-            <p>歡迎回來，${req.user.memberName}！</p>
+            <p>歡迎回來，${req.user.n}！</p>
             
             <div class="user-info">
                 <strong>會員資訊</strong><br>
-                姓名：${req.user.memberName}<br>
-                會員ID：${req.user.memberId}
+                姓名：${req.user.n}<br>
+                會員ID：${req.user.m}
             </div>
             
             <p>您現在可以回到 LINE 聊天室使用所有會員功能了！</p>
@@ -346,14 +346,14 @@ router.get('/status', jwtMiddleware, (req: Request, res: Response) => {
     });
   }
   
-  if (req.user && req.user.lineId === userId) {
+  if (req.user && req.user.l === userId) {  // lineId -> l
     res.json({
       success: true,
       isLoggedIn: true,
       user: {
-        lineId: req.user.lineId,
-        memberId: req.user.memberId,
-        memberName: req.user.memberName
+        lineId: req.user.l,      // lineId -> l
+        memberId: req.user.m,    // memberId -> m
+        memberName: req.user.n   // memberName -> n
       }
     });
   } else {

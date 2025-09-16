@@ -10,8 +10,10 @@ import { createOrderDetailCard } from '../templates/messageTemplates'
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
   const data = new URLSearchParams(event.postback.data)
-  const action = data.get('action')
-  const token = data.get('token')
+  
+  // 支援新舊兩種參數格式
+  const action = data.get('a') || data.get('action')  // 新格式: a, 舊格式: action
+  const jwtToken = data.get('j') || data.get('jwt') || data.get('token')  // 新格式: j, 舊格式: jwt/token
   
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
@@ -33,16 +35,28 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
       await handleTutorial(event, client)
       break
       
+    case 'mc':
     case 'member_center':
-      await handleMemberCenter(event, client, userId, token)
+      await handleMemberCenter(event, client, userId, jwtToken)
       break
       
+    case 'vo':
     case 'view_orders':
-      await handleViewOrders(event, client, userId, token)
+      await handleViewOrders(event, client, userId, jwtToken)
       break
       
+    case 'co':
     case 'create_order':
-      await handleCreateOrder(event, client, userId, token)
+      await handleCreateOrder(event, client, userId, jwtToken)
+      break
+      
+    case 'vp':
+    case 'view_pharmacies':
+      // TODO: 實作查看藥局功能
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '🏪 查看藥局功能正在開發中，敬請期待！'
+      })
       break
       
     case 'logout':
@@ -165,10 +179,10 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     
     // 創建臨時的 session 物件
     userSession = {
-      lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      l: userId,          // lineId -> l
+      m: userState.memberId!,    // memberId -> m
+      n: userState.memberName || '會員', // memberName -> n
+      t: userState.accessToken!, // accessToken -> t
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }
@@ -315,10 +329,10 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     
     // 創建臨時的 session 物件
     userSession = {
-      lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      l: userId,          // lineId -> l
+      m: userState.memberId!,    // memberId -> m
+      n: userState.memberName || '會員', // memberName -> n
+      t: userState.accessToken!, // accessToken -> t
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }
@@ -326,7 +340,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
 
   try {
     // 使用用戶狀態中的 accessToken
-    const accessToken = userSession.accessToken
+    const accessToken = userSession.t  // accessToken -> t
     
     if (!accessToken) {
       await client.replyMessage(event.replyToken, {
@@ -418,10 +432,10 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     
     // 創建臨時的 session 物件
     userSession = {
-      lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      l: userId,          // lineId -> l
+      m: userState.memberId!,    // memberId -> m
+      n: userState.memberName || '會員', // memberName -> n
+      t: userState.accessToken!, // accessToken -> t
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }

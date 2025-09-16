@@ -27,7 +27,7 @@ export function jwtMiddleware(req: Request, res: Response, next: NextFunction) {
     
     if (decoded) {
       req.user = decoded;
-      req.lineUserId = decoded.lineId;
+      req.lineUserId = decoded.l;  // lineId -> l
     }
     
     next();
@@ -52,7 +52,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 // 檢查是否為特定用戶
 export function requireUser(userId: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user || req.user.lineId !== userId) {
+    if (!req.user || req.user.l !== userId) {  // lineId -> l
       return res.status(403).json({ 
         error: 'Forbidden', 
         message: '權限不足' 
