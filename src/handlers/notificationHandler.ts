@@ -1,5 +1,7 @@
 import { Client } from '@line/bot-sdk';
 import { WebSocketMessage, OrderState } from '../types';
+import { getUserState } from '../services/userService';
+import { createUserToken } from '../services/jwtService';
 
 // 建立 LINE Bot 客戶端的函數（延遲初始化）
 function getClient(): Client {
@@ -43,6 +45,17 @@ export async function sendOrderStatusUpdate(userId: string, message: WebSocketMe
     
     // 推送訊息給用戶
     const client = getClient();
+    
+    // 嘗試獲取用戶狀態以生成 JWT token
+    const userState = getUserState(userId);
+    let viewOrderData = `action=view_order_detail&order_id=${message.id}`;
+    
+    // 如果用戶已登入，添加 JWT token
+    if (userState.accessToken && userState.memberId) {
+      const jwtToken = createUserToken(userId, userState.memberId, userState.accessToken, userState.memberName || '用戶');
+      viewOrderData = `action=view_order_detail&order_id=${message.id}&jwt=${jwtToken}`;
+    }
+    
     await client.pushMessage(userId, [
       {
         type: 'text',
@@ -59,7 +72,7 @@ export async function sendOrderStatusUpdate(userId: string, message: WebSocketMe
             {
               type: 'postback',
               label: '📋 查看訂單詳情',
-              data: `action=view_order_detail&order_id=${message.id}`
+              data: viewOrderData
             },
             {
               type: 'message',

@@ -2,6 +2,7 @@ import { MessageEvent, Client } from '@line/bot-sdk';
 import { searchPharmacies } from '../services/apiService';
 import { createPharmacyCarousel } from '../templates/messageTemplates';
 import { getUserState, isUserLoggedIn } from '../services/userService';
+import { createUserToken } from '../services/jwtService';
 
 export async function handlePharmacySearch(event: MessageEvent, client: Client): Promise<void> {
   try {
@@ -68,12 +69,15 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       ? `🏥 根據您的地址（${searchKeyword}），找到 ${pharmacies.length} 家藥局：`
       : `🏥 找到 ${pharmacies.length} 家藥局，以下是附近的藥局：`;
     
+    // 獲取 JWT token 來傳遞給模板
+    const jwtToken = createUserToken(userId, userState.memberId!, userState.accessToken!, userState.memberName || '用戶');
+    
     await client.replyMessage(event.replyToken, [
       {
         type: 'text',
         text: searchResultMessage
       },
-      createPharmacyCarousel(limitedPharmacies)
+      createPharmacyCarousel(limitedPharmacies, jwtToken)
     ]);
     
   } catch (error) {

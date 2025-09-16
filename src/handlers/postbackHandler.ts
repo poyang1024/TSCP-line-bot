@@ -2,6 +2,7 @@ import { PostbackEvent, Client } from '@line/bot-sdk';
 import { getUserState, updateUserState } from '../services/userService';
 import { createOrder, getOrderDetail } from '../services/apiService';
 import { createOrderDetailCard } from '../templates/messageTemplates';
+import { createUserToken, verifyUserToken } from '../services/jwtService';
 import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
@@ -118,8 +119,28 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   const userId = event.source.userId!;
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
+  const incomingJwtToken = data.get('j') || data.get('jwt');
   
   console.log(`🏥 用戶 ${userId} 選擇藥局 ${pharmacyId}`);
+  
+  // 驗證 JWT token（如果有提供）
+  if (incomingJwtToken) {
+    const userSession = verifyUserToken(incomingJwtToken);
+    if (!userSession) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 登入已過期，請重新登入。'
+      });
+      return;
+    }
+    
+    // 更新用戶狀態為最新的認證資訊
+    updateUserState(userId, {
+      memberId: userSession.m,
+      memberName: userSession.n,
+      accessToken: userSession.t
+    });
+  }
   
   if (!userState.accessToken) {
     await client.replyMessage(event.replyToken, {
@@ -161,6 +182,9 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   
   console.log(`✅ 已儲存藥局選擇: ${pharmacyId}`);
   
+  // 生成 JWT token
+  const jwtToken = createUserToken(userId, userState.memberId!, userState.accessToken!, userState.memberName || '用戶');
+  
   // 詢問取藥方式
   await client.replyMessage(event.replyToken, {
     type: 'template',
@@ -173,12 +197,12 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
         {
           type: 'postback',
           label: '🏪 到店自取',
-          data: `action=confirm_order&delivery=false&pharmacy_id=${pharmacyId}`
+          data: `action=confirm_order&delivery=false&pharmacy_id=${pharmacyId}&jwt=${jwtToken}`
         },
         {
           type: 'postback',
           label: '🚚 外送到府 （功能即將開放）',
-          data: `action=confirm_order&delivery=true&pharmacy_id=${pharmacyId}`
+          data: `action=confirm_order&delivery=true&pharmacy_id=${pharmacyId}&jwt=${jwtToken}`
         }
       ]
     }
@@ -190,8 +214,28 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
   const isDelivery = data.get('delivery') === 'true';
+  const incomingJwtToken = data.get('jwt');
   
   console.log(`📋 開始建立訂單 - User: ${userId}, Pharmacy: ${pharmacyId}, Delivery: ${isDelivery}`);
+  
+  // 驗證 JWT token（如果有提供）
+  if (incomingJwtToken) {
+    const userSession = verifyUserToken(incomingJwtToken);
+    if (!userSession) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 登入已過期，請重新登入。'
+      });
+      return;
+    }
+    
+    // 更新用戶狀態為最新的認證資訊
+    updateUserState(userId, {
+      memberId: userSession.m,
+      memberName: userSession.n,
+      accessToken: userSession.t
+    });
+  }
   
   // 檢查外送功能是否可用
   if (isDelivery) {
@@ -358,9 +402,12 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       
       // 如果有完整的訂單資料，就顯示詳細卡片；否則只顯示成功訊息
       if (order.order_code && order.order_code !== '系統產生中') {
+        // 生成 JWT token 給卡片使用
+        const jwtToken = createUserToken(userId, userState.memberId!, userState.accessToken!, userState.memberName || '用戶');
+        
         await client.replyMessage(event.replyToken, [
           successMessage,
-          createOrderDetailCard(order)
+          createOrderDetailCard(order, jwtToken)
         ]);
       } else {
         await client.replyMessage(event.replyToken, [
@@ -393,6 +440,26 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
   const userId = event.source.userId!;
   const userState = getUserState(userId);
   const orderId = data.get('order_id');
+  const incomingJwtToken = data.get('j') || data.get('jwt');
+  
+  // 驗證 JWT token（如果有提供）
+  if (incomingJwtToken) {
+    const userSession = verifyUserToken(incomingJwtToken);
+    if (!userSession) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 登入已過期，請重新登入。'
+      });
+      return;
+    }
+    
+    // 更新用戶狀態為最新的認證資訊
+    updateUserState(userId, {
+      memberId: userSession.m,
+      memberName: userSession.n,
+      accessToken: userSession.t
+    });
+  }
   
   if (!userState.accessToken || !orderId) {
     await client.replyMessage(event.replyToken, {

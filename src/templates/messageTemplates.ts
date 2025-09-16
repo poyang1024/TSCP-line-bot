@@ -113,7 +113,7 @@ export function createLoginPrompt(): Message {
 }
 
 // 藥局輪播卡片
-export function createPharmacyCarousel(pharmacies: Pharmacy[]): Message {
+export function createPharmacyCarousel(pharmacies: Pharmacy[], jwtToken?: string): Message {
   const columns = pharmacies.map(pharmacy => ({
     title: pharmacy.name,
     text: `${pharmacy.org_name}\n📍 ${pharmacy.address}`,
@@ -121,7 +121,9 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[]): Message {
       {
         type: 'postback' as const,
         label: '選擇此藥局',
-        data: `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
+        data: jwtToken 
+          ? `a=select_pharmacy&pharmacy_id=${pharmacy.id}&j=${jwtToken}`
+          : `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
       },
       {
         type: 'uri' as const,
@@ -155,7 +157,7 @@ export function getOrderStateText(state: number): string {
 }
 
 // 訂單詳情卡片
-export function createOrderDetailCard(order: Order): FlexMessage {
+export function createOrderDetailCard(order: Order, jwtToken?: string): FlexMessage {
   return {
     type: 'flex',
     altText: `訂單 ${order.order_code || '新訂單'}`,
@@ -274,7 +276,9 @@ export function createOrderDetailCard(order: Order): FlexMessage {
             action: {
               type: 'postback',
               label: '查看完整詳情',
-              data: `action=view_order_detail&order_id=${order.id || 0}`
+              data: jwtToken 
+                ? `a=view_order_detail&order_id=${order.id || 0}&j=${jwtToken}`
+                : `action=view_order_detail&order_id=${order.id || 0}`
             },
             style: 'primary'
           }

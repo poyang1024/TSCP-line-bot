@@ -2,6 +2,7 @@ import { MessageEvent, Client } from '@line/bot-sdk';
 import { getUserState, ensureUserState } from '../services/userService';
 import { getOrders } from '../services/apiService';
 import { createOrderDetailCard } from '../templates/messageTemplates';
+import { createUserToken } from '../services/jwtService';
 
 export async function handleOrderInquiry(event: MessageEvent, client: Client): Promise<void> {
   const userId = event.source.userId!;
@@ -38,10 +39,13 @@ export async function handleOrderInquiry(event: MessageEvent, client: Client): P
     const recentOrders = orders.slice(-3);
     console.log(`📋 準備顯示 ${recentOrders.length} 筆訂單`);
     
+    // 生成 JWT token
+    const jwtToken = createUserToken(userId, userState.memberId!, userState.accessToken!, userState.memberName || '用戶');
+    
     try {
       const orderCards = recentOrders.map(order => {
         console.log(`📋 建立訂單卡片: ${order.order_code}`);
-        return createOrderDetailCard(order);
+        return createOrderDetailCard(order, jwtToken);
       });
       
       // 先發送概要訊息

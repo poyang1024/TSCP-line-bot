@@ -307,16 +307,30 @@ router.get('/success', jwtMiddleware, (req: Request, res: Response) => {
             
             <p>您現在可以回到 LINE 聊天室使用所有會員功能了！</p>
             
+            <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
             <script>
-                // 3 秒後自動關閉頁面
-                setTimeout(() => {
-                    window.close();
-                }, 3000);
-                
-                // 如果是在 LINE 內建瀏覽器中，嘗試關閉
-                if (window.liff) {
-                    liff.closeWindow();
+                // LIFF 狀態同步
+                function syncToLIFF() {
+                    const liffId = '${process.env.LIFF_ID || ''}';
+                    if (liffId && window.liff) {
+                        liff.init({ liffId: liffId }).then(() => {
+                            const token = '${req.cookies.jwt_token || ''}';
+                            localStorage.setItem('jwt_token', token);
+                            localStorage.setItem('jwt_expires', '${Date.now() + 7 * 24 * 60 * 60 * 1000}');
+                            liff.closeWindow();
+                        }).catch(err => {
+                            console.log('LIFF init failed:', err);
+                            window.close();
+                        });
+                    } else {
+                        // 非 LIFF 環境，正常關閉
+                        setTimeout(() => {
+                            window.close();
+                        }, 3000);
+                    }
                 }
+                
+                syncToLIFF();
             </script>
         </div>
     </body>
@@ -362,6 +376,17 @@ router.get('/status', jwtMiddleware, (req: Request, res: Response) => {
       isLoggedIn: false
     });
   }
+});
+
+// LIFF 狀態檢查頁面
+router.get('/liff-status', (req: Request, res: Response) => {
+  const liffId = process.env.LIFF_ID;
+  if (!liffId) {
+    return res.status(500).send('LIFF ID not configured');
+  }
+  
+  // 重定向到帶有 LIFF ID 的靜態頁面
+  res.redirect(`/liff-status.html?liffId=${liffId}&${req.url.split('?')[1] || ''}`);
 });
 
 export default router;

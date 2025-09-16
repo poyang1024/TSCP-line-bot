@@ -1,5 +1,5 @@
 import { PostbackEvent, Client, FlexMessage } from '@line/bot-sdk'
-import { verifyUserToken, refreshUserToken } from '../services/jwtService'
+import { verifyUserToken, refreshUserToken, createUserToken } from '../services/jwtService'
 import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
 import { updateUserRichMenu } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
@@ -365,7 +365,9 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const recentOrders = orders.slice(0, 3)
     
     try {
-      const orderCards = recentOrders.map(order => createOrderDetailCard(order))
+      // 創建新的 JWT token 給卡片使用
+      const newJwtToken = createUserToken(userId, userSession.m, userSession.t, userSession.n)
+      const orderCards = recentOrders.map(order => createOrderDetailCard(order, newJwtToken))
       
       // 先發送概要訊息
       await client.replyMessage(event.replyToken, {

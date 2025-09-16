@@ -77,8 +77,8 @@ export async function createMemberRichMenu(client: Client): Promise<string> {
       {
         bounds: { x: 0, y: 0, width: 2500, height: 843 },
         action: {
-          type: 'postback',
-          data: 'action=herbal_appointment'
+          type: 'uri',
+          uri: `line://app/${process.env.LIFF_ID}?action=herbal_appointment`
         }
       },
       // 藥師諮詢 (下方左)
@@ -101,8 +101,8 @@ export async function createMemberRichMenu(client: Client): Promise<string> {
       {
         bounds: { x: 1667, y: 843, width: 833, height: 843 },
         action: {
-          type: 'postback',
-          data: 'action=member_center'
+          type: 'uri',
+          uri: `line://app/${process.env.LIFF_ID}?action=member_center`
         }
       }
     ]

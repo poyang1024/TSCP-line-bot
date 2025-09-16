@@ -36,6 +36,68 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
     if (event.message.type === 'text') {
       const text = event.message.text.trim();
       
+      // 處理 LIFF 隱藏訊息
+      if (text.startsWith('jwt_action:')) {
+        const [, action, token] = text.split(':');
+        if (token) {
+          // 根據不同的 action 執行對應的處理
+          switch (action) {
+            case 'member_center':
+            case 'mc':
+            case 'view_orders':
+            case 'vo':
+            case 'herbal_appointment':
+              // 執行 Rich Menu 相關動作
+              const { handleRichMenuPostback } = await import('./richMenuHandler');
+              const mockEvent = {
+                ...event,
+                type: 'postback' as const,
+                postback: { data: `a=${action}&j=${token}` }
+              };
+              await handleRichMenuPostback(mockEvent as any, client);
+              break;
+            
+            case 'create_order':
+            case 'co':
+              // 處理建立訂單
+              const { handlePostback } = await import('./postbackHandler');
+              const mockPostbackEvent = {
+                ...event,
+                type: 'postback' as const,
+                postback: { data: `a=${action}&j=${token}` }
+              };
+              await handlePostback(mockPostbackEvent as any, client);
+              break;
+              
+            default:
+              console.log(`Unknown JWT action: ${action}`);
+              break;
+          }
+          return { success: true, action: 'jwt_action_executed' };
+        }
+      }
+      
+      // 處理登入過期訊息
+      if (text === 'login_expired') {
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '🔒 您的登入狀態已過期，請重新登入\n\n點擊下方按鈕快速登入：',
+          quickReply: {
+            items: [{
+              type: 'action',
+              action: {
+                type: 'uri',
+                uri: `${process.env.NODE_ENV === 'production' 
+                  ? 'https://tscp-line-bot.vercel.app' 
+                  : `http://localhost:${process.env.PORT || 3000}`}/auth/login?userId=${userId}`,
+                label: '🔐 重新登入'
+              }
+            }]
+          }
+        });
+        return { success: true, action: 'login_expired_handled' };
+      }
+      
       // 檢查是否為登入流程中的步驟
       if (userState.currentStep === 'waiting_account' || userState.currentStep === 'waiting_password') {
         await handleLogin(event, client);
