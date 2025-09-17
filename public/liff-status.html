@@ -36,38 +36,87 @@
 <body>
     <div class="loading">
         <div class="spinner"></div>
-        <p>檢查登入狀態中...</p>
+        <p id="status">檢查登入狀態中...</p>
+        <div id="debug" style="font-size: 12px; color: #999; margin-top: 10px; text-align: left; display: none;"></div>
     </div>
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script>
+        // 除錯輔助函數
+        function debug(message) {
+            console.log(message);
+            const debugDiv = document.getElementById('debug');
+            debugDiv.style.display = 'block';
+            debugDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            debug('狀態更新: ' + message);
+        }
+        
         // 從 URL 參數取得資訊
         const urlParams = new URLSearchParams(window.location.search);
         const action = urlParams.get('action') || 'member_center';
         const userId = urlParams.get('userId');
         
+        debug('URL 參數: action=' + action + ', userId=' + userId);
+        debug('當前 URL: ' + window.location.href);
+        
         // 初始化 LIFF
         // 當透過 line://app/LIFF-ID 開啟時，LIFF ID 會自動處理
         // 不需要手動指定 liffId 參數
+        
+        updateStatus('正在初始化 LIFF...');
+        
+        // 添加超時處理
+        const timeout = setTimeout(() => {
+            debug('LIFF 初始化超時 (10秒)');
+            updateStatus('初始化超時，請重新嘗試');
+            setTimeout(() => {
+                if (userId) {
+                    debug('重導向到登入頁面');
+                    window.location.href = `/auth/login?userId=${userId}`;
+                } else {
+                    debug('嘗試關閉視窗');
+                    try {
+                        liff.closeWindow();
+                    } catch (e) {
+                        updateStatus('請關閉此頁面');
+                    }
+                }
+            }, 2000);
+        }, 10000); // 10秒超時
+        
         liff.init().then(() => {
-            console.log('LIFF initialized');
+            clearTimeout(timeout);
+            debug('LIFF 初始化成功');
+            updateStatus('檢查認證狀態...');
             
             // 檢查 localStorage 中的 JWT token
             const token = localStorage.getItem('jwt_token');
             const expires = localStorage.getItem('jwt_expires');
             
+            debug('Token 檢查: hasToken=' + !!token + ', expires=' + expires + ', isValid=' + (token && expires && Date.now() < parseInt(expires)));
+            
             if (token && expires && Date.now() < parseInt(expires)) {
                 // Token 有效，發送隱藏訊息給 Bot
+                updateStatus('發送認證資訊...');
                 const message = `jwt_action:${action}:${token}`;
+                debug('發送訊息: ' + message.substring(0, 50) + '...');
                 
                 liff.sendMessages([{
                     type: 'text',
                     text: message
                 }]).then(() => {
-                    console.log('Message sent successfully');
-                    liff.closeWindow();
+                    debug('訊息發送成功');
+                    updateStatus('處理完成');
+                    setTimeout(() => {
+                        liff.closeWindow();
+                    }, 1000);
                 }).catch(err => {
-                    console.error('Failed to send message:', err);
+                    debug('發送訊息失敗: ' + err.message);
+                    updateStatus('發送失敗，重新登入');
                     // 發送登入過期訊息
                     liff.sendMessages([{
                         type: 'text',
@@ -78,7 +127,8 @@
                 });
             } else {
                 // Token 無效或過期
-                console.log('Token invalid or expired');
+                debug('Token 無效或過期');
+                updateStatus('認證過期，重新登入');
                 liff.sendMessages([{
                     type: 'text',
                     text: 'login_expired'
@@ -87,11 +137,25 @@
                 });
             }
         }).catch(err => {
-            console.error('LIFF init failed:', err);
+            clearTimeout(timeout);
+            debug('LIFF 初始化失敗: ' + err.message);
+            updateStatus('初始化失敗，請重新嘗試');
+            
             // 回退到一般登入流程
-            if (userId) {
-                window.location.href = `/auth/login?userId=${userId}`;
-            }
+            setTimeout(() => {
+                if (userId) {
+                    debug('重導向到登入頁面 (錯誤回退)');
+                    window.location.href = `/auth/login?userId=${userId}`;
+                } else {
+                    // 如果沒有 userId，嘗試關閉視窗
+                    try {
+                        liff.closeWindow();
+                    } catch (e) {
+                        // 如果關閉失敗，顯示提示
+                        updateStatus('請關閉此頁面');
+                    }
+                }
+            }, 2000);
         });
     </script>
 </body>
