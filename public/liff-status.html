@@ -63,32 +63,38 @@
         debug('URL 參數: action=' + action + ', userId=' + userId);
         debug('當前 URL: ' + window.location.href);
         
+        // 顯示本地儲存狀態
+        debug('localStorage 項目數: ' + localStorage.length);
+        debug('jwt_token: ' + (localStorage.getItem('jwt_token') ? '存在' : '不存在'));
+        debug('jwt_expires: ' + localStorage.getItem('jwt_expires'));
+        
         // 初始化 LIFF
         // 當透過 line://app/LIFF-ID 開啟時，LIFF ID 會自動處理
         // 不需要手動指定 liffId 參數
         
         updateStatus('正在初始化 LIFF...');
+        debug('開始 LIFF 初始化...');
         
-        // 添加超時處理
-        const timeout = setTimeout(() => {
-            debug('LIFF 初始化超時 (10秒)');
-            updateStatus('初始化超時，請重新嘗試');
-            setTimeout(() => {
-                if (userId) {
-                    debug('重導向到登入頁面');
-                    window.location.href = `/auth/login?userId=${userId}`;
-                } else {
-                    debug('嘗試關閉視窗');
-                    try {
-                        liff.closeWindow();
-                    } catch (e) {
-                        updateStatus('請關閉此頁面');
-                    }
-                }
-            }, 2000);
-        }, 10000); // 10秒超時
-        
-        liff.init().then(() => {
+        // 從 API 取得 LIFF ID
+        try {
+            const configResponse = await fetch('/api/config');
+            const config = await configResponse.json();
+            const liffId = config.liffId;
+            
+            debug('從 API 取得 LIFF ID: ' + liffId);
+            
+            if (!liffId) {
+                throw new Error('LIFF ID 未設定');
+            }
+            
+            // 添加超時處理
+            const timeout = setTimeout(() => {
+                debug('LIFF 初始化超時 (10秒)');
+                updateStatus('初始化超時，請重新嘗試');
+            }, 10000);
+            
+            // 使用從 API 取得的 LIFF ID 進行初始化
+            liff.init({ liffId: liffId }).then(() => {
             clearTimeout(timeout);
             debug('LIFF 初始化成功');
             updateStatus('檢查認證狀態...');
@@ -137,7 +143,6 @@
                 });
             }
         }).catch(err => {
-            clearTimeout(timeout);
             debug('LIFF 初始化失敗: ' + err.message);
             updateStatus('初始化失敗，請重新嘗試');
             
@@ -157,6 +162,11 @@
                 }
             }, 2000);
         });
+        
+        } catch (configErr) {
+            debug('取得配置失敗: ' + configErr.message);
+            updateStatus('配置載入失敗，請重新嘗試');
+        }
     </script>
 </body>
 </html>
