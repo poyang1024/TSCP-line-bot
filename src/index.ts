@@ -47,6 +47,11 @@ app.use(cookieParser());
 // 靜態文件服務
 app.use(express.static('public'));
 
+// LIFF 專用路由
+app.get('/liff-status.html', (req, res) => {
+  res.sendFile('liff-status.html', { root: 'public' });
+});
+
 // 認證路由
 app.use('/auth', authRoutes);
 

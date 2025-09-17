@@ -2,6 +2,14 @@
   "version": 2,
   "routes": [
     {
+      "src": "/liff-status.html",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/public/(.*)",
+      "dest": "/public/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/index.js"
     }
