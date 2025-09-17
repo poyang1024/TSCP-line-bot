@@ -47,12 +47,9 @@
         const userId = urlParams.get('userId');
         
         // 初始化 LIFF
-        // LIFF ID 從環境變數或 URL 參數取得
-        const liffId = new URLSearchParams(window.location.search).get('liffId') || window.LIFF_ID || 'YOUR_LIFF_ID';
-        
-        // 如果是通過 Rich Menu 的 line://app/ 連結開啟，LIFF ID 會自動處理
-        // 直接使用當前頁面的 LIFF 環境
-        liff.init({ liffId: liffId }).then(() => {
+        // 當透過 line://app/LIFF-ID 開啟時，LIFF ID 會自動處理
+        // 不需要手動指定 liffId 參數
+        liff.init().then(() => {
             console.log('LIFF initialized');
             
             // 檢查 localStorage 中的 JWT token

@@ -49,7 +49,33 @@ app.use(express.static('public'));
 
 // LIFF 專用路由
 app.get('/liff-status.html', (req, res) => {
-  res.sendFile('liff-status.html', { root: 'public' });
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // 在 Vercel 環境中，文件可能在不同位置
+    let filePath;
+    if (process.env.VERCEL) {
+      filePath = path.join(process.cwd(), 'public/liff-status.html');
+    } else {
+      filePath = path.join(__dirname, '../public/liff-status.html');
+    }
+    
+    console.log('📁 LIFF 文件路徑:', filePath);
+    console.log('📁 文件是否存在:', fs.existsSync(filePath));
+    
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(content);
+    } else {
+      console.error('❌ LIFF 文件不存在');
+      res.status(404).send('LIFF 頁面不存在');
+    }
+  } catch (error) {
+    console.error('❌ LIFF 文件錯誤:', error);
+    res.status(500).json({ error: 'LIFF 頁面載入失敗', details: error.message });
+  }
 });
 
 // 認證路由
