@@ -8,6 +8,7 @@ import {
   handleWebChangePassword, 
   handleWebDeleteAccount 
 } from '../handlers/webAuthHandler';
+import configRoutes from './configRoutes';
 
 // 設定檔案上傳
 const storage = multer.diskStorage({
@@ -98,6 +99,9 @@ export function setupRoutes(app: express.Application, client: Client): void {
   
   // 靜態檔案服務（用於提供上傳的圖片）
   app.use('/uploads', express.static(process.env.UPLOAD_DIR || 'uploads'));
+  
+  // 配置 API 路由
+  app.use('/api', configRoutes);
   
   // 錯誤處理中間件
   app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
