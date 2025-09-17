@@ -15,6 +15,11 @@ const client = new Client(config);
 async function createGuestRichMenu() {
   console.log('🎨 建立訪客圖文選單...');
   
+  const liffId = process.env.LIFF_ID;
+  if (!liffId || liffId === 'YOUR_LIFF_ID_HERE') {
+    console.warn('⚠️ LIFF_ID 未設定，使用 postback 格式');
+  }
+  
   const richMenu = {
     size: {
       width: 2500,
@@ -24,10 +29,13 @@ async function createGuestRichMenu() {
     name: '訪客選單',
     chatBarText: '功能選單',
     areas: [
-      // 訂單管理 - 需要登入 (上方整排)
+      // 中藥預約 - 訪客也可以使用但需要登入 (上方整排)
       {
         bounds: { x: 0, y: 0, width: 2500, height: 843 },
-        action: {
+        action: liffId && liffId !== 'YOUR_LIFF_ID_HERE' ? {
+          type: 'uri',
+          uri: `line://app/${liffId}?action=herbal_appointment`
+        } : {
           type: 'postback',
           data: `action=login_required&feature=orders&message=${encodeURIComponent('🔒 訂單功能需要先登入會員帳號')}`
         }
@@ -85,6 +93,11 @@ async function createGuestRichMenu() {
 async function createMemberRichMenu() {
   console.log('🎨 建立會員圖文選單...');
   
+  const liffId = process.env.LIFF_ID;
+  if (!liffId || liffId === 'YOUR_LIFF_ID_HERE') {
+    console.warn('⚠️ LIFF_ID 未設定，使用 postback 格式');
+  }
+  
   const richMenu = {
     size: {
       width: 2500,
@@ -94,10 +107,13 @@ async function createMemberRichMenu() {
     name: '會員選單',
     chatBarText: '會員功能',
     areas: [
-      // 中藥預約/新增訂單 (上排左)
+      // 中藥預約 (上排左)
       {
-        bounds: { x: 0, y: 0, width: 833, height: 562 },
-        action: {
+        bounds: { x: 0, y: 0, width: 834, height: 562 },
+        action: liffId && liffId !== 'YOUR_LIFF_ID_HERE' ? {
+          type: 'uri',
+          uri: `line://app/${liffId}?action=herbal_appointment`
+        } : {
           type: 'postback',
           data: 'action=create_order'
         }
@@ -105,7 +121,10 @@ async function createMemberRichMenu() {
       // 我的訂單 (上排右)
       {
         bounds: { x: 1667, y: 0, width: 833, height: 562 },
-        action: {
+        action: liffId && liffId !== 'YOUR_LIFF_ID_HERE' ? {
+          type: 'uri',
+          uri: `line://app/${liffId}?action=view_orders`
+        } : {
           type: 'postback',
           data: 'action=view_orders'
         }
@@ -113,7 +132,10 @@ async function createMemberRichMenu() {
       // 會員中心 (上排中間)
       {
         bounds: { x: 834, y: 0, width: 834, height: 562 },
-        action: {
+        action: liffId && liffId !== 'YOUR_LIFF_ID_HERE' ? {
+          type: 'uri',
+          uri: `line://app/${liffId}?action=member_center`
+        } : {
           type: 'postback',
           data: 'action=member_center'
         }
