@@ -184,10 +184,20 @@ export async function searchPharmacies(token: string, keyword?: string): Promise
 // 查詢訂單
 export async function getOrders(token: string, state?: number): Promise<Order[]> {
   try {
+    const params: any = {
+      order: 'created_at',
+      order_by: 'DESC'
+    };
+    
+    if (state !== undefined) {
+      params.state = state;
+    }
+    
     const response = await api.get('/delivery/medicine', {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      params: params
     });
     
     if (response.data.success) {
