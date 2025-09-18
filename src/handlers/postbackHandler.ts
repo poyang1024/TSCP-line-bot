@@ -6,7 +6,6 @@ import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
 import { handlePharmacyPageNavigation } from './pharmacyHandler';
-import { checkDuplicateRequest, generateDuplicateRequestMessage } from '../services/duplicateCheckService';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -38,56 +37,20 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   const data = new URLSearchParams(event.postback.data);
   const action = data.get('action') || 'unknown';
   
-  // 智能重複請求檢測
-  const { isDuplicate, shouldShowMessage, shouldExecute } = await checkDuplicateRequest(userId, action);
-  
-  if (isDuplicate) {
-    console.log(`🔄 檢測到用戶 ${userId} 重複請求 ${action}${shouldShowMessage ? '，發送提醒' : '，靜默處理'}`);
+  // 檢查是否為重新投遞事件
+  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
+    console.log('🔄 檢測到重新投遞事件，使用 pushMessage 回應');
     
-    if (shouldShowMessage) {
-      // 檢查是否為重新投遞事件
-      if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
-        // 重新投遞事件使用 pushMessage
-        try {
-          const message = generateDuplicateRequestMessage(action);
-          await client.pushMessage(userId, {
-            type: 'text',
-            text: message
-          });
-        } catch (pushError) {
-          console.error('❌ 推送重複請求提醒失敗:', pushError);
-        }
-      } else {
-        // 正常事件使用 replyMessage
-        try {
-          const message = generateDuplicateRequestMessage(action);
-          await client.replyMessage(event.replyToken, {
-            type: 'text',
-            text: message
-          });
-        } catch (replyError) {
-          console.error('❌ 回覆重複請求提醒失敗，改用 pushMessage:', replyError);
-          try {
-            const message = generateDuplicateRequestMessage(action);
-            await client.pushMessage(userId, {
-              type: 'text',
-              text: message
-            });
-          } catch (pushError) {
-            console.error('❌ 推送重複請求提醒也失敗:', pushError);
-          }
-        }
-      }
+    try {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: '⚠️ 檢測到重複請求，請避免快速點擊按鈕。\n\n如需協助，請稍候再試。'
+      });
+    } catch (pushError) {
+      console.error('❌ 推送重新投遞提醒失敗:', pushError);
     }
     
-    // 重要：只有在 shouldExecute 為 false 時才完全阻止執行
-    if (!shouldExecute) {
-      console.log(`🚫 用戶 ${userId} 重複請求過多 ${action}，暫時阻止執行`);
-      return { success: true, action, error: 'Too many duplicate requests' };
-    }
-    
-    // 如果 shouldExecute 為 true，繼續執行但不再顯示訊息
-    console.log(`✅ 用戶 ${userId} 重複請求 ${action}，但仍繼續執行`);
+    return { success: true, action: 'duplicate_filtered' };
   }
   
   try {
