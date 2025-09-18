@@ -197,6 +197,23 @@ app.all('*', (req, res) => {
 // 事件處理
 async function handleEvent(event: WebhookEvent): Promise<{ success: boolean; eventType: string; action?: string; error?: string }> {
   try {
+    // 引入重複事件檢查函數
+    const { isDuplicateEvent, markEventAsProcessed } = await import('./services/userService');
+    
+    // 檢查是否為重複事件
+    const eventId = event.webhookEventId;
+    const deliveryContext = (event as any).deliveryContext;
+    
+    if (eventId && isDuplicateEvent(eventId, deliveryContext)) {
+      console.log(`🔄 檢測到重複事件 (ID: ${eventId}), 跳過處理`);
+      return { success: true, eventType: event.type, action: 'duplicate_filtered' };
+    }
+    
+    // 標記事件為已處理（在實際處理前標記，避免併發問題）
+    if (eventId) {
+      markEventAsProcessed(eventId);
+    }
+    
     if (event.type === 'message') {
       const result = await handleMessage(event as MessageEvent, client);
       return { 

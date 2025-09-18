@@ -37,22 +37,6 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   const data = new URLSearchParams(event.postback.data);
   const action = data.get('action') || 'unknown';
   
-  // 檢查是否為重新投遞事件
-  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
-    console.log('🔄 檢測到重新投遞事件，使用 pushMessage 回應');
-    
-    try {
-      await client.pushMessage(userId, {
-        type: 'text',
-        text: '⚠️ 檢測到重複請求，請避免快速點擊按鈕。\n\n如需協助，請稍候再試。'
-      });
-    } catch (pushError) {
-      console.error('❌ 推送重新投遞提醒失敗:', pushError);
-    }
-    
-    return { success: true, action: 'duplicate_filtered' };
-  }
-  
   try {
     // 檢查是否正在處理圖片，如果是則阻止其他操作
     if (userState.currentStep === 'processing_image') {

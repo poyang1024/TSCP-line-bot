@@ -7,6 +7,9 @@ import { verifyUserToken, JWTPayload } from './jwtService';
 const userTempData = new Map<string, any>();
 const userStates = new Map<string, Partial<UserState>>();
 
+// 處理過的 webhook 事件 ID 記錄（用於防重複）
+const processedEventIds = new Set<string>();
+
 // 從 JWT Token 取得用戶狀態
 export function getUserStateFromToken(lineId: string, token?: string): UserState {
   const baseState: UserState = { userId: lineId };
@@ -146,4 +149,33 @@ export function isUserLoggedInFromToken(lineId: string, token?: string): boolean
 export function isUserLoggedIn(userId: string): boolean {
   const state = getUserState(userId);
   return !!(state.memberId && state.accessToken);
+}
+
+// 檢查事件是否已處理過（防重複處理）
+export function hasEventBeenProcessed(eventId: string): boolean {
+  return processedEventIds.has(eventId);
+}
+
+// 標記事件為已處理
+export function markEventAsProcessed(eventId: string): void {
+  processedEventIds.add(eventId);
+  
+  // 限制記錄數量，避免記憶體洩漏（保留最近 1000 個事件 ID）
+  if (processedEventIds.size > 1000) {
+    const eventIdsArray = Array.from(processedEventIds);
+    const toKeep = eventIdsArray.slice(-800); // 保留最後 800 個
+    processedEventIds.clear();
+    toKeep.forEach(id => processedEventIds.add(id));
+  }
+}
+
+// 檢查是否為重新投遞的事件
+export function isDuplicateEvent(eventId: string, deliveryContext?: { isRedelivery?: boolean }): boolean {
+  // 檢查是否明確標記為重新投遞
+  if (deliveryContext?.isRedelivery) {
+    return true;
+  }
+  
+  // 檢查事件 ID 是否已處理過
+  return hasEventBeenProcessed(eventId);
 }
