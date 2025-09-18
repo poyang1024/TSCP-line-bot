@@ -64,15 +64,6 @@ function validateConnectionParams(url: string, token: string): boolean {
 }
 
 // 延遲重試連線
-function retryConnection(userId: string, memberId: number, token: string, wsUrl: string): void {
-  // 使用簡單的重試機制，不再依賴 Map 儲存重試次數
-  console.log(`🔄 3秒後重試連線 - ${userId}`);
-  
-  setTimeout(() => {
-    connectUserWebSocketInternal(userId, memberId, token, wsUrl);
-  }, 3000);
-}
-
 // 斷開用戶 WebSocket 連線
 export async function disconnectUserWebSocket(memberId: number): Promise<void> {
   try {
@@ -149,17 +140,22 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
   console.log(`🔌 嘗試連接 WebSocket: ${wsUrl}`);
   console.log(`🔑 Token 長度: ${token?.length || 0}`);
   
+  // 先進行簡單的健康檢查
+  try {
+    const urlCheck = new URL(wsUrl);
+    console.log(`🔍 URL 檢查通過: ${urlCheck.protocol}//${urlCheck.host}${urlCheck.pathname}`);
+  } catch (error) {
+    console.error(`❌ WebSocket URL 格式錯誤: ${wsUrl}`);
+    return;
+  }
+  
   socket = io(wsUrl, {
     transports: ['websocket', 'polling'], // 添加 polling 作為備選
-    timeout: 20000, // 增加超時時間到 20 秒
-    reconnection: true, // 啟用自動重連
-    reconnectionAttempts: 3, // 減少重連次數（Vercel 環境下重連意義不大）
-    reconnectionDelay: 1000, // 重連延遲 1 秒
-    reconnectionDelayMax: 3000, // 最大重連延遲 3 秒
-    randomizationFactor: 0.5, // 隨機化因子
+    timeout: 10000, // 減少超時時間到 10 秒（適應 Vercel）
+    reconnection: false, // 禁用自動重連（在 serverless 環境下無意義）
     forceNew: true, // 強制建立新連線
     upgrade: true, // 允許協議升級
-    rememberUpgrade: true, // 記住升級
+    rememberUpgrade: false, // 不記住升級（避免狀態問題）
     auth: {
       token: token,
     },
@@ -167,6 +163,7 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
   
   socket.on('connect', async () => {
     console.log(`✅ 用戶 ${userId} WebSocket 連線成功，Member ID: ${memberId}`);
+    console.log(`🔗 Socket ID: ${socket?.id}, 連線狀態: ${socket?.connected}`);
     
     // 檢查 socket 是否仍然有效
     if (!socket || socket.disconnected) {
@@ -179,24 +176,28 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
     console.log(`🏠 準備加入房間: ${room}`);
     console.log(`👤 用戶資訊: ${userId} (Member ID: ${memberId})`);
     
-    socket.emit('join_room', room);
-    console.log(`✅ 已發送加入房間請求: ${room}`);
-    
-    // 儲存連線狀態到 Redis
-    const connectionSaved = await setWebSocketConnection(userId, {
-      memberId: memberId,
-      socketId: socket.id,
-      connectedAt: Date.now(),
-      accessToken: token
-    });
-    
-    if (connectionSaved) {
-      console.log(`✅ WebSocket 連線狀態已儲存到 Redis - ${userId}`);
-    } else {
-      console.warn(`⚠️ 無法儲存 WebSocket 連線狀態到 Redis - ${userId}`);
+    try {
+      socket.emit('join_room', room);
+      console.log(`✅ 已發送加入房間請求: ${room}`);
+      
+      // 儲存連線狀態到 Redis
+      const connectionSaved = await setWebSocketConnection(userId, {
+        memberId: memberId,
+        socketId: socket.id,
+        connectedAt: Date.now(),
+        accessToken: token
+      });
+      
+      if (connectionSaved) {
+        console.log(`✅ WebSocket 連線狀態已儲存到 Redis - ${userId}`);
+      } else {
+        console.warn(`⚠️ 無法儲存 WebSocket 連線狀態到 Redis - ${userId}`);
+      }
+      
+      console.log(`📝 已記錄用戶連線: Member ID ${memberId} -> User ID ${userId}`);
+    } catch (error) {
+      console.error(`❌ 處理連線事件時發生錯誤:`, error);
     }
-    
-    console.log(`📝 已記錄用戶連線: Member ID ${memberId} -> User ID ${userId}`);
   });
   
   socket.on('connect_error', (error) => {
@@ -205,18 +206,30 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
     console.error('❌ Token 長度:', token?.length || 0);
     console.error('❌ Error 類型:', error.constructor.name);
     console.error('❌ Error 訊息:', error.message);
+    console.error('❌ Socket 狀態:', socket?.connected || 'undefined');
     
-    // 如果是超時錯誤，記錄額外資訊
+    // 檢查具體的錯誤類型
     if (error.message && error.message.includes('timeout')) {
       console.error('⏰ 連線超時 - 可能的原因:');
-      console.error('   1. 網路連線不穩定');
-      console.error('   2. WebSocket 伺服器回應緩慢');
-      console.error('   3. Token 驗證失敗');
-      console.error('   4. 防火牆阻擋連線');
+      console.error('   1. WebSocket 伺服器無回應或過載');
+      console.error('   2. 網路連線問題');
+      console.error('   3. Token 認證失敗');
+      console.error('   4. 伺服器防火牆阻擋');
+      console.error('   5. Vercel 冷啟動或網路限制');
+    } else if (error.message && error.message.includes('401')) {
+      console.error('🔒 認證失敗 - Token 可能無效或過期');
+    } else if (error.message && error.message.includes('404')) {
+      console.error('🔍 端點不存在 - WebSocket URL 可能錯誤');
     }
     
-    // 嘗試重新連線
-    retryConnection(userId, memberId, token, wsUrl);
+    // 在 Vercel serverless 環境下，不進行重試
+    console.log(`🚫 在 serverless 環境下跳過重試，等待下次用戶操作`);
+    
+    // 清理 socket
+    if (socket) {
+      socket.removeAllListeners();
+      socket = null;
+    }
   });
   
   // 監聽訂單狀態更新
@@ -296,63 +309,19 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
   
   socket.on('connect_timeout', () => {
     console.error('⏰ WebSocket 連線超時');
-    console.error('🔄 將嘗試重新連線...');
-  });
-  
-  socket.on('reconnect', async (attemptNumber) => {
-    console.log(`🔄 WebSocket 重新連線成功 (嘗試 ${attemptNumber} 次)`);
-    
-    // 檢查 socket 是否仍然有效
-    if (!socket || socket.disconnected) {
-      console.warn(`⚠️ Socket 在重連事件處理中已斷開，跳過後續處理`);
-      return;
-    }
-    
-    // 重連成功後重新加入房間
-    const room = `member.delivery.medicine.${memberId}`;
-    console.log(`🏠 重連後重新加入房間: ${room}`);
-    console.log(`👤 重連用戶: ${userId} (Member ID: ${memberId})`);
-    
-    socket.emit('join_room', room);
-    console.log(`✅ 重連後已發送加入房間請求: ${room}`);
-    
-    // 更新 Redis 中的連線狀態
-    await updateWebSocketHeartbeat(userId);
-    
-    // 重新監聽廣播頻道
-    const broadcastChannel = `member.deliveryMedicine.${memberId}`;
-    console.log(`📡 重連後重新監聽廣播頻道: ${broadcastChannel}`);
-  });
-  
-  socket.on('reconnect_error', (error) => {
-    console.error('❌ WebSocket 重新連線錯誤:', error);
-  });
-  
-  socket.on('reconnect_failed', async () => {
-    console.error('❌ WebSocket 重新連線失敗 - 已達到最大重試次數');
-    // 清理 Redis 中的連線記錄
-    await removeWebSocketConnection(userId);
-    socket = null;
+    console.error('� 在 serverless 環境下不進行重連，等待下次請求');
   });
   
   socket.on('disconnect', async (reason) => {
     console.log(`🔌 用戶 ${userId} WebSocket 斷線，原因: ${reason}`);
     
-    // 根據斷線原因決定處理方式
-    if (reason === 'io client disconnect') {
-      // 手動斷線，清理連線記錄
-      console.log(`👋 手動斷線，清理連線記錄`);
-      await removeWebSocketConnection(userId);
-      socket = null;
-    } else if (reason === 'ping timeout' || reason === 'transport close' || reason === 'transport error') {
-      // 網路相關斷線，在 Vercel 環境下很常見
-      console.log(`🌐 網路斷線 (${reason})，這在 Vercel serverless 環境下是正常的`);
-      console.log(`🔄 保持連線記錄，等待下次用戶操作時重新連線`);
-      // 清理當前 socket 但保留 Redis 記錄，以便下次重連
-      socket = null;
-    } else {
-      // 其他原因的斷線
-      console.log(`❓ 未知斷線原因: ${reason}，保持連線記錄以便重連`);
+    // 在 serverless 環境下，所有斷線都是正常的
+    console.log(`🌐 WebSocket 斷線 (${reason})，這在 Vercel serverless 環境下是正常的`);
+    console.log(`🔄 連線記錄保持在 Redis 中，等待下次用戶操作時重新連線`);
+    
+    // 清理當前 socket 但保留 Redis 記錄，以便下次重連
+    if (socket) {
+      socket.removeAllListeners();
       socket = null;
     }
   });

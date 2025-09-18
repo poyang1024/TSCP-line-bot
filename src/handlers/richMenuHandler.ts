@@ -34,7 +34,7 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   }
   
   // 對於會員功能，檢查並確保 WebSocket 連線
-  const memberActions = ['member_center', 'order_history', 'pharmacist_consultation']
+  const memberActions = ['member_center', 'view_orders', 'create_order', 'order_history', 'pharmacist_consultation']
   if (memberActions.includes(action || '')) {
     console.log(`🔍 檢查用戶 ${userId} 的 WebSocket 連線狀態...`)
     await ensureUserWebSocketConnection(userId)
