@@ -112,9 +112,15 @@ export function createLoginPrompt(): Message {
   };
 }
 
-// 藥局輪播卡片
-export function createPharmacyCarousel(pharmacies: Pharmacy[]): Message {
-  const columns = pharmacies.map(pharmacy => ({
+// 藥局輪播卡片 (支援分頁)
+export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1): Message {
+  const pageSize = 10;
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPagePharmacies = pharmacies.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(pharmacies.length / pageSize);
+  
+  const columns = currentPagePharmacies.map(pharmacy => ({
     title: pharmacy.name,
     text: `${pharmacy.org_name}\n📍 ${pharmacy.address}`,
     actions: [
@@ -133,10 +139,62 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[]): Message {
 
   return {
     type: 'template',
-    altText: '藥局列表',
+    altText: `藥局列表 (第 ${page}/${totalPages} 頁)`,
     template: {
       type: 'carousel',
-      columns: columns.slice(0, 10) // LINE 限制最多10個
+      columns: columns
+    }
+  };
+}
+
+// 藥局分頁導航按鈕
+export function createPharmacyPaginationButtons(pharmacies: Pharmacy[], currentPage: number): Message {
+  const pageSize = 10;
+  const totalPages = Math.ceil(pharmacies.length / pageSize);
+  
+  if (totalPages <= 1) {
+    // 如果只有一頁，不需要分頁按鈕
+    return {
+      type: 'text',
+      text: `📍 共找到 ${pharmacies.length} 家藥局`
+    };
+  }
+  
+  const actions: any[] = [];
+  
+  // 上一頁按鈕
+  if (currentPage > 1) {
+    actions.push({
+      type: 'postback',
+      label: '⬅️ 上一頁',
+      data: `action=pharmacy_page&page=${currentPage - 1}`
+    });
+  }
+  
+  // 頁面資訊
+  actions.push({
+    type: 'message',
+    label: `📄 第 ${currentPage}/${totalPages} 頁`,
+    text: `目前第 ${currentPage} 頁，共 ${totalPages} 頁`
+  });
+  
+  // 下一頁按鈕
+  if (currentPage < totalPages) {
+    actions.push({
+      type: 'postback',
+      label: '下一頁 ➡️',
+      data: `action=pharmacy_page&page=${currentPage + 1}`
+    });
+  }
+  
+  return {
+    type: 'template',
+    altText: '分頁導航',
+    template: {
+      type: 'buttons',
+      title: '🏥 藥局分頁',
+      text: `第 ${currentPage}/${totalPages} 頁 (共 ${pharmacies.length} 家藥局)`,
+      actions: actions.slice(0, 4) // LINE 限制最多4個按鈕
     }
   };
 }
@@ -154,7 +212,7 @@ export function getOrderStateText(state: number): string {
   }
 }
 
-// 訂單詳情卡片
+// 訂單詳情卡片 (單一訂單)
 export function createOrderDetailCard(order: Order): FlexMessage {
   return {
     type: 'flex',
@@ -280,6 +338,35 @@ export function createOrderDetailCard(order: Order): FlexMessage {
           }
         ]
       }
+    }
+  };
+}
+
+// 訂單輪播卡片 (多個訂單)
+export function createOrderCarousel(orders: Order[]): Message {
+  const columns = orders.map(order => ({
+    title: `📋 ${order.order_code || '新訂單'}`,
+    text: `${getOrderStateText(order.state)}\n🏥 ${order.area_name || '選定藥局'}\n${order.is_delivery ? '🚚 外送' : '🏪 自取'}`,
+    actions: [
+      {
+        type: 'postback' as const,
+        label: '查看詳情',
+        data: `action=view_order_detail&order_id=${order.id || 0}`
+      },
+      {
+        type: 'postback' as const,
+        label: '聯絡藥局',
+        data: `action=contact_pharmacy&order_id=${order.id || 0}`
+      }
+    ]
+  }));
+
+  return {
+    type: 'template',
+    altText: '訂單列表',
+    template: {
+      type: 'carousel',
+      columns: columns.slice(0, 10) // LINE 限制最多10個
     }
   };
 }
