@@ -399,7 +399,7 @@ export async function getNotifications(
     };
     
     if (isRead !== undefined) {
-      params.is_read = isRead;
+      params.is_read = isRead ? '1' : '0';
     }
     
     const response = await api.get('/notification', {
@@ -442,7 +442,7 @@ export async function markNotificationAsRead(
     console.log('✅ 標記通知為已讀:', notificationId);
     
     const response = await api.patch(`/notification/${notificationId}`, {
-      is_read: true
+      is_read: '1'
     }, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
