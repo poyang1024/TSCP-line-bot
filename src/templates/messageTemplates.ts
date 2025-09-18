@@ -216,7 +216,7 @@ export function createOrderDetailCard(order: Order): FlexMessage {
               },
               {
                 type: 'text',
-                text: getOrderStateText(order.state || 0),
+                text: getOrderStateText(order.state),
                 size: 'sm',
                 flex: 5
               }
