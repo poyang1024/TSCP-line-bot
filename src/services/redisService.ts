@@ -46,6 +46,13 @@ export async function initRedis(): Promise<void> {
     // 建立連線
     await redisClient.connect();
     
+    // 等待連線完全就緒
+    if (!redisClient.isReady) {
+      await new Promise((resolve) => {
+        redisClient!.once('ready', resolve);
+      });
+    }
+    
     console.log('✅ Redis 初始化完成');
   } catch (error) {
     console.error('❌ Redis 初始化失敗:', error);

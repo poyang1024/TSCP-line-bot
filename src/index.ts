@@ -22,6 +22,8 @@ console.log('🔍 環境變數檢查:');
 console.log('LINE_CHANNEL_ACCESS_TOKEN 長度:', process.env.LINE_CHANNEL_ACCESS_TOKEN?.length || 0);
 console.log('LINE_CHANNEL_SECRET 長度:', process.env.LINE_CHANNEL_SECRET?.length || 0);
 console.log('TOKEN 前10字元:', process.env.LINE_CHANNEL_ACCESS_TOKEN?.substring(0, 10) || 'undefined');
+console.log('VERCEL_DEPLOYMENT_ID:', process.env.VERCEL_DEPLOYMENT_ID?.substring(0, 12) || 'undefined');
+console.log('VERCEL_GIT_COMMIT_SHA:', process.env.VERCEL_GIT_COMMIT_SHA?.substring(0, 8) || 'undefined');
 
 // LINE Bot 設定
 const config = {
@@ -121,9 +123,26 @@ const verifySignature = (req: express.Request, res: express.Response, next: expr
 setupRoutes(app, client);
 
 // Webhook 路由 - 使用簽章驗證
-app.post('/webhook', verifySignature, (req, res) => {
+app.post('/webhook', verifySignature, async (req, res) => {
   console.log('📨 收到 Webhook 請求');
   console.log('請求體:', JSON.stringify(req.body, null, 2));
+  
+  // 等待服務初始化完成
+  if (!servicesInitialized) {
+    console.log('⏳ 等待服務初始化完成...');
+    let retries = 0;
+    const maxRetries = 10;
+    
+    while (!servicesInitialized && retries < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      retries++;
+    }
+    
+    if (!servicesInitialized) {
+      console.error('❌ 服務初始化超時，無法處理請求');
+      return res.status(503).json({ error: 'Service initialization timeout' });
+    }
+  }
   
   // 檢查事件數組
   if (!req.body.events || !Array.isArray(req.body.events)) {
@@ -217,18 +236,43 @@ async function handleEvent(event: WebhookEvent): Promise<{ success: boolean; eve
   }
 }
 
+// 服務就緒狀態
+let servicesInitialized = false;
+
 // 初始化服務
 async function initializeServices() {
   try {
     console.log('🔧 正在初始化服務...');
     
-    // 初始化 Redis
+    // 初始化 Redis (等待完成)
     await initRedis();
     
-    // 檢查是否為新部署
-    const packageJson = require('../package.json');
-    const currentVersion = `${packageJson.version}-${Date.now()}`;
-    const isNewDeployment = await checkNewDeployment(currentVersion);
+    // 檢查是否為新部署 (使用 Vercel deployment ID 或 build timestamp)
+    let currentVersion: string;
+    let shouldClearStates = false;
+    
+    // 檢查是否有強制清除標記
+    if (process.env.FORCE_CLEAR_STATES === 'true') {
+      console.log('🧹 檢測到強制清除標記，將清除所有登入狀態');
+      shouldClearStates = true;
+    }
+    
+    if (process.env.VERCEL_DEPLOYMENT_ID) {
+      // 在 Vercel 環境中使用 deployment ID
+      currentVersion = process.env.VERCEL_DEPLOYMENT_ID;
+      console.log('📋 當前部署版本 (Vercel Deployment ID):', currentVersion.substring(0, 12));
+    } else if (process.env.VERCEL_GIT_COMMIT_SHA) {
+      // 使用 Git commit SHA
+      currentVersion = process.env.VERCEL_GIT_COMMIT_SHA;
+      console.log('📋 當前部署版本 (Git SHA):', currentVersion.substring(0, 8));
+    } else {
+      // 本地開發或其他環境，使用 package.json 版本
+      const packageJson = require('../package.json');
+      currentVersion = packageJson.version;
+      console.log('📋 當前部署版本 (Package version):', currentVersion);
+    }
+    
+    const isNewDeployment = shouldClearStates || await checkNewDeployment(currentVersion);
     
     if (isNewDeployment) {
       console.log('🚀 檢測到新部署，清除所有用戶登入狀態...');
@@ -252,6 +296,7 @@ async function initializeServices() {
       await initializeRichMenus(client);
     }
     
+    servicesInitialized = true;
     console.log('✅ 所有服務初始化完成');
   } catch (error) {
     console.error('❌ 服務初始化失敗:', error);

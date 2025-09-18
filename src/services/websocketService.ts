@@ -85,10 +85,16 @@ export async function disconnectUserWebSocket(memberId: number): Promise<void> {
       console.log(`🚪 準備離開房間: ${room}`);
       console.log(`👤 離開用戶: ${userId} (Member ID: ${memberId})`);
       
-      socket.emit('leave_room', room);
-      console.log(`✅ 已發送離開房間請求: ${room}`);
+      // 檢查 socket 是否仍然連接後再執行操作
+      if (!socket.disconnected) {
+        socket.emit('leave_room', room);
+        console.log(`✅ 已發送離開房間請求: ${room}`);
+        
+        socket.disconnect();
+      } else {
+        console.log(`⚠️ Socket 已斷線，跳過離開房間操作`);
+      }
       
-      socket.disconnect();
       socket = null;
       
       // 從 Redis 移除連線記錄
@@ -162,18 +168,24 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
   socket.on('connect', async () => {
     console.log(`✅ 用戶 ${userId} WebSocket 連線成功，Member ID: ${memberId}`);
     
+    // 檢查 socket 是否仍然有效
+    if (!socket || socket.disconnected) {
+      console.warn(`⚠️ Socket 在連線事件處理中已斷開，跳過後續處理`);
+      return;
+    }
+    
     // 加入房間
     const room = `member.delivery.medicine.${memberId}`;
     console.log(`🏠 準備加入房間: ${room}`);
     console.log(`👤 用戶資訊: ${userId} (Member ID: ${memberId})`);
     
-    socket!.emit('join_room', room);
+    socket.emit('join_room', room);
     console.log(`✅ 已發送加入房間請求: ${room}`);
     
     // 儲存連線狀態到 Redis
     const connectionSaved = await setWebSocketConnection(userId, {
       memberId: memberId,
-      socketId: socket!.id,
+      socketId: socket.id,
       connectedAt: Date.now(),
       accessToken: token
     });
@@ -289,12 +301,19 @@ async function connectUserWebSocketInternal(userId: string, memberId: number, to
   
   socket.on('reconnect', async (attemptNumber) => {
     console.log(`🔄 WebSocket 重新連線成功 (嘗試 ${attemptNumber} 次)`);
+    
+    // 檢查 socket 是否仍然有效
+    if (!socket || socket.disconnected) {
+      console.warn(`⚠️ Socket 在重連事件處理中已斷開，跳過後續處理`);
+      return;
+    }
+    
     // 重連成功後重新加入房間
     const room = `member.delivery.medicine.${memberId}`;
     console.log(`🏠 重連後重新加入房間: ${room}`);
     console.log(`👤 重連用戶: ${userId} (Member ID: ${memberId})`);
     
-    socket!.emit('join_room', room);
+    socket.emit('join_room', room);
     console.log(`✅ 重連後已發送加入房間請求: ${room}`);
     
     // 更新 Redis 中的連線狀態
