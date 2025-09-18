@@ -416,6 +416,12 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     // 查詢訂單
     const orders = await getOrders(accessToken)
     
+    console.log(`📋 API 回傳訂單數量: ${orders.length}`)
+    if (orders.length > 0) {
+      console.log(`📋 第一筆訂單: ${orders[0].order_code}, ID: ${orders[0].id}`)
+      console.log(`📋 最後一筆訂單: ${orders[orders.length - 1].order_code}, ID: ${orders[orders.length - 1].id}`)
+    }
+    
     if (orders.length === 0) {
       await client.pushMessage(userId, {
         type: 'text',
@@ -425,7 +431,10 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     }
 
     // 顯示最近的10筆訂單 (確保不超過 LINE 的訊息限制)
-    const recentOrders = orders.slice(0, 10)
+    // 確保訂單按 ID 降序排列（最新的在前面）
+    const sortedOrders = orders.sort((a, b) => b.id - a.id);
+    const recentOrders = sortedOrders.slice(0, 10)
+    console.log(`📋 輪播顯示訂單: ${recentOrders.map(o => `${o.order_code}(ID:${o.id})`).join(', ')}`)
     
     try {
       const carouselMessage = createOrderCarousel(recentOrders)

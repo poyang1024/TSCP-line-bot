@@ -35,7 +35,9 @@ export async function handleOrderInquiry(event: MessageEvent, client: Client): P
     }
     
     // 顯示最近的10筆訂單 (確保不超過 LINE 的訊息限制)
-    const recentOrders = orders.slice(0, 10);
+    // 確保訂單按 ID 降序排列（最新的在前面）
+    const sortedOrders = orders.sort((a, b) => b.id - a.id);
+    const recentOrders = sortedOrders.slice(0, 10);
     console.log(`📋 準備顯示 ${recentOrders.length} 筆訂單`);
     
     try {
