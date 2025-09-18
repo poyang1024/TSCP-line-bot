@@ -145,6 +145,12 @@ async function handleTutorial(event: PostbackEvent, client: Client): Promise<voi
 
 // 處理會員中心
 async function handleMemberCenter(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '👤 正在載入會員中心，請稍候...'
+  })
+  
   let userSession = null
   
   // 首先嘗試驗證 JWT token
@@ -163,7 +169,7 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
     await updateUserRichMenu(client, userId, false)
     
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
     })
@@ -271,7 +277,7 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     }
   }
 
-  await client.replyMessage(event.replyToken, memberMenu)
+  await client.pushMessage(userId, memberMenu)
 }
 
 // 處理登出
@@ -344,6 +350,12 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
 async function handleViewOrders(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
   console.log(`📋 處理查看訂單請求: userId=${userId}`)
   
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '📋 正在查詢您的訂單資料，請稍候...'
+  })
+  
   let userSession = null
   
   // 首先嘗試驗證 JWT token
@@ -364,7 +376,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
       await updateUserRichMenu(client, userId, false)
       
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
       })
@@ -394,7 +406,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const accessToken = userSession.accessToken
     
     if (!accessToken) {
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '❌ 無法取得用戶認證資訊，請重新登入。'
       })
@@ -405,7 +417,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const orders = await getOrders(accessToken)
     
     if (orders.length === 0) {
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`
       })
@@ -419,7 +431,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       const carouselMessage = createOrderCarousel(recentOrders)
       
       // 發送輪播訊息
-      await client.replyMessage(event.replyToken, carouselMessage)
+      await client.pushMessage(userId, carouselMessage)
       
       // 如果有更多訂單，發送提示訊息
       if (orders.length > 10) {
@@ -431,7 +443,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     } catch (cardCreationError) {
       console.error('建立訂單卡片錯誤:', cardCreationError)
       // 如果卡片創建失敗，發送簡單的錯誤訊息
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。\n\n請稍後再試或聯絡客服。`
       })
@@ -440,7 +452,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
 
   } catch (error) {
     console.error('查詢訂單錯誤:', error)
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '❌ 查詢訂單時發生錯誤，請稍後再試。'
     })
@@ -451,6 +463,12 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
 // 處理創建訂單/上傳藥單
 async function handleCreateOrder(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
   console.log(`📝 處理創建訂單請求: userId=${userId}`)
+  
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '📝 正在準備配藥服務，請稍候...'
+  })
   
   let userSession = null
   
@@ -477,16 +495,7 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
       }
       
-      try {
-        await client.replyMessage(event.replyToken, message)
-      } catch (replyError) {
-        console.error('❌ replyMessage 失敗，改用 pushMessage:', replyError)
-        try {
-          await client.pushMessage(userId, message)
-        } catch (pushError) {
-          console.error('❌ pushMessage 也失敗:', pushError)
-        }
-      }
+      await client.pushMessage(userId, message)
       return
     }
     
@@ -525,25 +534,22 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
   }
   
-  try {
-    await client.replyMessage(event.replyToken, message)
-  } catch (replyError) {
-    console.error('❌ replyMessage 失敗，改用 pushMessage:', replyError)
-    try {
-      await client.pushMessage(userId, message)
-    } catch (pushError) {
-      console.error('❌ pushMessage 也失敗:', pushError)
-    }
-  }
+  await client.pushMessage(userId, message)
 }
 
 // 處理本地密碼修改 (開發環境)
 async function handleChangePasswordLocal(event: PostbackEvent, client: Client, userId: string): Promise<void> {
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '🔐 正在準備密碼修改功能，請稍候...'
+  })
+  
   const userState = getUserState(userId)
   
   // 檢查用戶是否已登入
   if (!userState.accessToken || !userState.memberId) {
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n請使用下方選單中的「中藥預約」功能重新登入。'
     })
@@ -563,7 +569,7 @@ async function handleChangePasswordLocal(event: PostbackEvent, client: Client, u
     }
   })
   
-  await client.replyMessage(event.replyToken, {
+  await client.pushMessage(userId, {
     type: 'text',
     text: '🔐 修改密碼\n\n請輸入您的舊密碼：'
   })

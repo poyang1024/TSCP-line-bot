@@ -136,13 +136,20 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
 
 async function handlePharmacySelection(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
+  
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '🏥 正在處理您的藥局選擇，請稍候...'
+  });
+  
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
   
   console.log(`🏥 用戶 ${userId} 選擇藥局 ${pharmacyId}`);
   
   if (!userState.accessToken) {
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '❌ 請先登入會員帳號'
     });
@@ -163,7 +170,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   
   if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
     console.log(`❌ 用戶狀態檢查失敗 - 缺少藥單資料`);
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '📷 請先上傳藥單照片，然後再選擇藥局。'
     });
@@ -182,7 +189,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   console.log(`✅ 已儲存藥局選擇: ${pharmacyId}`);
   
   // 詢問取藥方式
-  await client.replyMessage(event.replyToken, {
+  await client.pushMessage(userId, {
     type: 'template',
     altText: '選擇取藥方式',
     template: {
@@ -207,6 +214,13 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
 
 async function handleOrderConfirmation(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
+  
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '📋 正在建立您的訂單，請稍候...'
+  });
+  
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
   const isDelivery = data.get('delivery') === 'true';
@@ -215,7 +229,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   // 檢查外送功能是否可用
   if (isDelivery) {
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '🚚 外送到府功能即將開放！\n\n目前僅提供到店自取服務，請選擇到店自取選項。\n\n感謝您的耐心等候。'
     });
@@ -235,7 +249,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       isProduction,
       userState: userState
     });
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '❌ 訂單資訊不完整，請重新上傳藥單並選擇藥局。'
     });
@@ -279,7 +293,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     
     if (!userState.tempData.prescriptionFile) {
       console.error(`❌ 藥單檔案路徑不存在`);
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '❌ 藥單檔案遺失，請重新上傳。'
       });
@@ -294,7 +308,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         const messageId = userState.tempData.messageId;
         if (!messageId) {
           console.error(`❌ 臨時檔案缺少 messageId`);
-          await client.replyMessage(event.replyToken, {
+          await client.pushMessage(userId, {
             type: 'text',
             text: '❌ 藥單檔案資訊不完整，請重新上傳。'
           });
@@ -322,7 +336,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         // 從實際檔案讀取
         if (!fs.existsSync(userState.tempData.prescriptionFile)) {
           console.error(`❌ 藥單檔案不存在:`, userState.tempData.prescriptionFile);
-          await client.replyMessage(event.replyToken, {
+          await client.pushMessage(userId, {
             type: 'text',
             text: '❌ 藥單檔案遺失，請重新上傳。'
           });
@@ -335,7 +349,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       
     } catch (readError) {
       console.error('❌ 讀取藥單檔案失敗:', readError);
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '❌ 讀取藥單檔案失敗，請重新上傳。'
       });
@@ -378,23 +392,19 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       
       // 如果有完整的訂單資料，就顯示詳細卡片；否則只顯示成功訊息
       if (order.order_code && order.order_code !== '系統產生中') {
-        await client.replyMessage(event.replyToken, [
-          successMessage,
-          createOrderDetailCard(order)
-        ]);
+        await client.pushMessage(userId, successMessage);
+        await client.pushMessage(userId, createOrderDetailCard(order));
       } else {
-        await client.replyMessage(event.replyToken, [
-          successMessage,
-          {
-            type: 'text',
-            text: '📋 您可以稍後輸入「我的訂單」查看詳細的訂單資訊。'
-          }
-        ]);
+        await client.pushMessage(userId, successMessage);
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: '📋 您可以稍後輸入「我的訂單」查看詳細的訂單資訊。'
+        });
       }
       
     } else {
       console.error('❌ 訂單建立失敗 - API 回傳失敗');
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '❌ 訂單建立失敗，請檢查網路連線後稍後再試。'
       });
@@ -402,7 +412,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     
   } catch (error) {
     console.error('❌ 建立訂單錯誤:', error);
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: `❌ 訂單建立失敗：${error instanceof Error ? error.message : '未知錯誤'}，請稍後再試。`
     });
@@ -411,11 +421,18 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
 
 async function handleViewOrderDetail(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
+  
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '📋 正在查詢訂單詳情，請稍候...'
+  });
+  
   const userState = getUserState(userId);
   const orderId = data.get('order_id');
   
   if (!userState.accessToken || !orderId) {
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '❌ 無法查看訂單詳情'
     });
@@ -451,13 +468,13 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
         detailText += `🔑 確認碼：${order.confirmation_code}\n`;
       }
       
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: detailText
       });
       
     } else {
-      await client.replyMessage(event.replyToken, {
+      await client.pushMessage(userId, {
         type: 'text',
         text: '❌ 找不到訂單資訊'
       });
@@ -465,7 +482,7 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
     
   } catch (error) {
     console.error('查看訂單詳情錯誤:', error);
-    await client.replyMessage(event.replyToken, {
+    await client.pushMessage(userId, {
       type: 'text',
       text: '❌ 查看訂單詳情時發生錯誤'
     });

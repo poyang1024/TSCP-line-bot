@@ -7,8 +7,8 @@ import { verifyUserToken, JWTPayload } from './jwtService';
 const userTempData = new Map<string, any>();
 const userStates = new Map<string, Partial<UserState>>();
 
-// 處理過的 webhook 事件 ID 記錄（用於防重複）
-const processedEventIds = new Set<string>();
+// 處理過的 webhook 事件 ID 記錄（用於防重複）- 包含時間戳
+const processedEventIds = new Map<string, number>();
 
 // 從 JWT Token 取得用戶狀態
 export function getUserStateFromToken(lineId: string, token?: string): UserState {
@@ -153,19 +153,29 @@ export function isUserLoggedIn(userId: string): boolean {
 
 // 檢查事件是否已處理過（防重複處理）
 export function hasEventBeenProcessed(eventId: string): boolean {
-  return processedEventIds.has(eventId);
+  const processedTime = processedEventIds.get(eventId);
+  if (!processedTime) return false;
+  
+  // 如果事件超過 5 分鐘還沒處理完，認為可能是 serverless 重啟，允許重新處理
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  if (processedTime < fiveMinutesAgo) {
+    processedEventIds.delete(eventId);
+    return false;
+  }
+  
+  return true;
 }
 
 // 標記事件為已處理
 export function markEventAsProcessed(eventId: string): void {
-  processedEventIds.add(eventId);
+  processedEventIds.set(eventId, Date.now());
   
   // 限制記錄數量，避免記憶體洩漏（保留最近 1000 個事件 ID）
   if (processedEventIds.size > 1000) {
-    const eventIdsArray = Array.from(processedEventIds);
-    const toKeep = eventIdsArray.slice(-800); // 保留最後 800 個
+    const eventEntries = Array.from(processedEventIds.entries());
+    const toKeep = eventEntries.slice(-800); // 保留最後 800 個
     processedEventIds.clear();
-    toKeep.forEach(id => processedEventIds.add(id));
+    toKeep.forEach(([id, time]) => processedEventIds.set(id, time));
   }
 }
 
@@ -173,9 +183,17 @@ export function markEventAsProcessed(eventId: string): void {
 export function isDuplicateEvent(eventId: string, deliveryContext?: { isRedelivery?: boolean }): boolean {
   // 檢查是否明確標記為重新投遞
   if (deliveryContext?.isRedelivery) {
+    console.log(`🔄 LINE Platform 明確標記為重新投遞事件: ${eventId}`);
     return true;
   }
   
-  // 檢查事件 ID 是否已處理過
-  return hasEventBeenProcessed(eventId);
+  // 在 serverless 環境下，記憶體會重置，所以不應該僅基於記憶體中的記錄判斷重複
+  // 只有在同一個函數執行期間的短時間內才考慮為重複事件
+  const isInMemoryDuplicate = hasEventBeenProcessed(eventId);
+  if (isInMemoryDuplicate) {
+    console.log(`⚠️ 同一函數執行期間的重複事件: ${eventId}`);
+    return true;
+  }
+  
+  return false;
 }

@@ -209,39 +209,33 @@ async function handleEvent(event: WebhookEvent): Promise<{ success: boolean; eve
       return { success: true, eventType: event.type, action: 'duplicate_filtered' };
     }
     
-    // 標記事件為已處理（在實際處理前標記，避免併發問題）
-    if (eventId) {
-      markEventAsProcessed(eventId);
-    }
+    let result: { success: boolean; eventType?: string; action?: string; error?: string };
     
     if (event.type === 'message') {
-      const result = await handleMessage(event as MessageEvent, client);
-      return { 
-        success: result.success, 
-        eventType: 'message', 
-        action: result.action,
-        error: result.error
-      };
-    }
-    
-    if (event.type === 'postback') {
-      const result = await handlePostback(event as PostbackEvent, client);
-      return { 
-        success: result.success, 
-        eventType: 'postback', 
-        action: result.action,
-        error: result.error
-      };
-    }
-    
-    if (event.type === 'follow') {
+      result = await handleMessage(event as MessageEvent, client);
+    } else if (event.type === 'postback') {
+      result = await handlePostback(event as PostbackEvent, client);
+    } else if (event.type === 'follow') {
       await handleFollow(event as any, client);
-      return { success: true, eventType: 'follow', action: 'user_followed' };
+      result = { success: true, eventType: 'follow', action: 'user_followed' };
+    } else {
+      // 其他類型的事件（如 unfollow 等）
+      console.log(`📝 未處理的事件類型: ${event.type}`);
+      result = { success: true, eventType: event.type, action: 'unhandled' };
     }
     
-    // 其他類型的事件（如 unfollow 等）
-    console.log(`📝 未處理的事件類型: ${event.type}`);
-    return { success: true, eventType: event.type, action: 'unhandled' };
+    // 只有在成功處理事件後才標記為已處理
+    if (result.success && eventId) {
+      markEventAsProcessed(eventId);
+      console.log(`✅ 事件處理成功，已標記 (ID: ${eventId})`);
+    }
+    
+    return {
+      success: result.success,
+      eventType: result.eventType || event.type,
+      action: result.action,
+      error: result.error
+    };
     
   } catch (error) {
     console.error('❌ 事件處理異常:', error);
