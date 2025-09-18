@@ -78,7 +78,7 @@ export async function createMemberRichMenu(client: Client): Promise<string> {
         bounds: { x: 0, y: 0, width: 2500, height: 843 },
         action: {
           type: 'postback',
-          data: 'action=herbal_appointment'
+          data: 'action=create_order'
         }
       },
       // 藥師諮詢 (下方左)

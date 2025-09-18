@@ -17,22 +17,6 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
   
-  // 檢查是否為重新投遞事件
-  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
-    console.log('🔄 Rich Menu 檢測到重新投遞事件，使用 pushMessage 回應');
-    
-    try {
-      await client.pushMessage(userId, {
-        type: 'text',
-        text: '⚠️ 檢測到重複操作，請避免快速點擊選單。\n\n如需協助，請稍候再試。'
-      });
-    } catch (pushError) {
-      console.error('❌ 推送重新投遞提醒失敗:', pushError);
-    }
-    
-    return;
-  }
-  
   // 對於會員功能，檢查並確保 WebSocket 連線
   const memberActions = ['member_center', 'view_orders', 'create_order', 'order_history', 'pharmacist_consultation']
   if (memberActions.includes(action || '')) {
