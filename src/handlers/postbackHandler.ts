@@ -6,6 +6,7 @@ import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
 import { handlePharmacyPageNavigation } from './pharmacyHandler';
+import { checkDuplicateRequest, generateDuplicateRequestMessage } from '../services/duplicateCheckService';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -35,23 +36,40 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   const userId = event.source.userId!;
   const userState = getUserState(userId);
   const data = new URLSearchParams(event.postback.data);
-  const action = data.get('action');
+  const action = data.get('action') || 'unknown';
   
-  // 檢查是否為重新投遞事件
-  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
-    console.log('🔄 檢測到重新投遞事件，使用 pushMessage 回應');
+  // 智能重複請求檢測
+  const { isDuplicate, shouldShowMessage } = await checkDuplicateRequest(userId, action);
+  
+  if (isDuplicate) {
+    console.log(`🔄 檢測到用戶 ${userId} 重複請求 ${action}${shouldShowMessage ? '，發送提醒' : '，靜默處理'}`);
     
-    // 對於重新投遞事件，直接使用 pushMessage 而不是 replyMessage
-    try {
-      await client.pushMessage(userId, {
-        type: 'text',
-        text: '⚠️ 檢測到重複請求，請避免快速點擊按鈕。\n\n如需協助，請稍候再試。'
-      });
-    } catch (pushError) {
-      console.error('❌ 推送重新投遞提醒失敗:', pushError);
+    if (shouldShowMessage) {
+      // 檢查是否為重新投遞事件
+      if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
+        // 重新投遞事件使用 pushMessage
+        try {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: generateDuplicateRequestMessage(action)
+          });
+        } catch (pushError) {
+          console.error('❌ 推送重複請求提醒失敗:', pushError);
+        }
+      } else {
+        // 正常事件使用 replyMessage
+        try {
+          await client.replyMessage(event.replyToken, {
+            type: 'text',
+            text: generateDuplicateRequestMessage(action)
+          });
+        } catch (replyError) {
+          console.error('❌ 回覆重複請求提醒失敗:', replyError);
+        }
+      }
     }
     
-    return { success: true, action: 'redelivery_handled' };
+    return { success: true, action: 'duplicate_filtered' };
   }
   
   try {
