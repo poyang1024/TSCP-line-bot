@@ -1,5 +1,6 @@
 import { Client } from '@line/bot-sdk';
 import { WebSocketMessage, OrderState } from '../types';
+import { Notification } from '../services/apiService';
 
 // 建立 LINE Bot 客戶端的函數（延遲初始化）
 function getClient(): Client {
@@ -181,5 +182,51 @@ function getOrderStateEmoji(state: number): string {
     case OrderState.CANCELLED: return '🚫';
     case OrderState.COMPLETED: return '✅';
     default: return '❓';
+  }
+}
+
+// ==================== 新通知 API 處理 ====================
+
+/**
+ * 發送通知 (使用新的通知 API)
+ */
+export async function sendNotification(userId: string, notification: Notification): Promise<void> {
+  try {
+    const client = getClient();
+    
+    // 根據通知類型決定emoji和格式
+    let emoji = '📢';
+    let notificationText = '';
+    
+    // 如果通知與訂單相關，使用特殊格式
+    if (notification.record && notification.record.type === 0 && notification.record.order_code) {
+      // 訂單相關通知
+      emoji = '📋';
+      notificationText = `${emoji} ${notification.subject}\n\n`;
+      notificationText += `📋 訂單編號：${notification.record.order_code}\n`;
+      notificationText += `💬 ${notification.content}\n\n`;
+      notificationText += `⏰ 通知時間：${new Date(notification.created_at * 1000).toLocaleString('zh-TW')}`;
+    } else {
+      // 一般通知
+      notificationText = `${emoji} ${notification.subject}\n\n`;
+      notificationText += `💬 ${notification.content}\n\n`;
+      notificationText += `⏰ 通知時間：${new Date(notification.created_at * 1000).toLocaleString('zh-TW')}`;
+      
+      if (notification.sender) {
+        const senderType = notification.sender.type === 0 ? '會員系統' : '管理系統';
+        notificationText += `\n👤 來自：${notification.sender.name} (${senderType})`;
+      }
+    }
+    
+    await client.pushMessage(userId, {
+      type: 'text',
+      text: notificationText
+    });
+    
+    console.log(`✅ 已發送通知給用戶 ${userId}: ${notification.subject}`);
+    
+  } catch (error) {
+    console.error('❌ 發送通知失敗:', error);
+    throw error;
   }
 }
