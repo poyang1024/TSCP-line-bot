@@ -413,11 +413,20 @@ export async function getNotifications(
       console.log('✅ 通知查詢成功，共', response.data.data?.length || 0, '筆');
       return response.data.data || [];
     } else {
-      console.error('❌ 通知查詢失敗:', response.data.message);
+      console.error('❌ 通知查詢失敗:', response.data.message || response.data.error || '未知錯誤');
+      console.error('📄 完整回應:', JSON.stringify(response.data, null, 2));
       return [];
     }
   } catch (error) {
     console.error('❌ 查詢通知時發生錯誤:', error);
+    
+    // 如果是 Axios 錯誤，提供更詳細的資訊
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as any;
+      console.error('📄 錯誤回應狀態:', axiosError.response?.status);
+      console.error('📄 錯誤回應資料:', JSON.stringify(axiosError.response?.data, null, 2));
+    }
+    
     return [];
   }
 }
@@ -444,11 +453,20 @@ export async function markNotificationAsRead(
       console.log('✅ 通知已標記為已讀');
       return true;
     } else {
-      console.error('❌ 標記通知已讀失敗:', response.data.message);
+      console.error('❌ 標記通知已讀失敗:', response.data.message || response.data.error || '未知錯誤');
+      console.error('📄 完整回應:', JSON.stringify(response.data, null, 2));
       return false;
     }
   } catch (error) {
     console.error('❌ 標記通知已讀時發生錯誤:', error);
+    
+    // 如果是 Axios 錯誤，提供更詳細的資訊
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as any;
+      console.error('📄 錯誤回應狀態:', axiosError.response?.status);
+      console.error('📄 錯誤回應資料:', JSON.stringify(axiosError.response?.data, null, 2));
+    }
+    
     return false;
   }
 }
