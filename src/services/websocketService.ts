@@ -216,27 +216,24 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     console.log(`✅ 訊息已轉發到 LINE 用戶: ${userId}`);
   });
   
-  // 監聽其他可能的直接訊息事件
+  // 監聽其他可能的直接訊息事件（只監聽真正的業務訊息）
   const possibleMessageEvents = [
-    'message',
-    'notification', 
-    'alert',
-    'update',
-    'delivery_update',
-    'pharmacy_message',
-    'system_message'
+    'pharmacy_message',    // 藥局訊息
+    'delivery_update',     // 配送更新
+    'system_notification', // 系統通知
+    'urgent_message'       // 緊急訊息
   ];
   
   possibleMessageEvents.forEach(eventName => {
     socket.on(eventName, (data) => {
-      console.log(`📨 [Member ID: ${memberId}] 收到直接訊息事件: ${eventName}`);
+      console.log(`📨 [Member ID: ${memberId}] 收到重要訊息事件: ${eventName}`);
       console.log(`👤 目標用戶: ${userId}`);
       console.log(`📄 訊息內容:`, JSON.stringify(data, null, 2));
       
       // 發送到 LINE
       sendWebSocketNotification(userId, eventName, data);
       
-      console.log(`✅ 直接訊息已轉發到 LINE 用戶: ${userId}`);
+      console.log(`✅ 重要訊息已轉發到 LINE 用戶: ${userId}`);
     });
   });
   
@@ -247,8 +244,11 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
   
   // 監聽所有可能的 WebSocket 事件
   socket.onAny((eventName, ...args) => {
-    // 過濾掉常見的連線事件，只記錄可能的業務訊息
-    const ignoredEvents = ['connect', 'disconnect', 'connect_error', 'reconnect', 'reconnect_error', 'reconnect_failed'];
+    // 過濾掉連線事件和內部管理事件，只記錄真正的業務訊息
+    const ignoredEvents = [
+      'connect', 'disconnect', 'connect_error', 'reconnect', 'reconnect_error', 'reconnect_failed',
+      'connection', 'join_room', 'leave_room', 'error', 'connect_timeout'  // 新增內部管理事件
+    ];
     
     if (!ignoredEvents.includes(eventName)) {
       console.log(`🎯 [Member ID: ${memberId}] 收到 WebSocket 事件: ${eventName}`);
