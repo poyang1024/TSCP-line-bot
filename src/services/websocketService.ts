@@ -2,30 +2,27 @@ import { io, Socket } from 'socket.io-client';
 import { WebSocketMessage } from '../types';
 import { getUserState } from './userService';
 import { sendOrderStatusUpdate, sendWebSocketNotification } from '../handlers/notificationHandler';
+import { 
+  setWebSocketConnection, 
+  getWebSocketConnection, 
+  removeWebSocketConnection, 
+  getUserIdByMemberId,
+  isUserConnectedToWebSocket,
+  updateWebSocketHeartbeat,
+  getAllConnectedUsers
+} from './redisService';
 
 let socket: Socket | null = null;
-const connectedUsers = new Map<number, string>(); // memberId -> userId
-const connectionRetries = new Map<number, number>(); // memberId -> retry count
 
-// 檢查用戶是否已連線
-export function isUserConnected(userId: string): boolean {
-  // 檢查是否有任何 memberId 對應到這個 userId
-  for (const [memberId, connectedUserId] of connectedUsers.entries()) {
-    if (connectedUserId === userId) {
-      return true;
-    }
-  }
-  return false;
+// 檢查用戶是否已連線（從 Redis 查詢）
+export async function isUserConnected(userId: string): Promise<boolean> {
+  return await isUserConnectedToWebSocket(userId);
 }
 
-// 獲取用戶的 Member ID（如果已連線）
-export function getUserMemberId(userId: string): number | null {
-  for (const [memberId, connectedUserId] of connectedUsers.entries()) {
-    if (connectedUserId === userId) {
-      return memberId;
-    }
-  }
-  return null;
+// 獲取用戶的 Member ID（從 Redis 查詢）
+export async function getUserMemberId(userId: string): Promise<number | null> {
+  const connection = await getWebSocketConnection(userId);
+  return connection ? connection.memberId : null;
 }
 
 export function initWebSocket(): void {
@@ -68,50 +65,54 @@ function validateConnectionParams(url: string, token: string): boolean {
 
 // 延遲重試連線
 function retryConnection(userId: string, memberId: number, token: string, wsUrl: string): void {
-  const retryCount = connectionRetries.get(memberId) || 0;
-  const maxRetries = 3;
-  
-  if (retryCount >= maxRetries) {
-    console.error(`❌ 用戶 ${userId} WebSocket 連線重試次數已達上限 (${maxRetries})`);
-    connectionRetries.delete(memberId);
-    return;
-  }
-  
-  const delay = Math.pow(2, retryCount) * 1000; // 指數退避：1s, 2s, 4s
-  console.log(`🔄 ${delay}ms 後重試連線 (第 ${retryCount + 1} 次)`);
+  // 使用簡單的重試機制，不再依賴 Map 儲存重試次數
+  console.log(`🔄 3秒後重試連線 - ${userId}`);
   
   setTimeout(() => {
-    connectionRetries.set(memberId, retryCount + 1);
     connectUserWebSocketInternal(userId, memberId, token, wsUrl);
-  }, delay);
+  }, 3000);
 }
 
 // 斷開用戶 WebSocket 連線
-export function disconnectUserWebSocket(memberId: number): void {
-  if (socket && connectedUsers.has(memberId)) {
-    const userId = connectedUsers.get(memberId);
-    const room = `member.delivery.medicine.${memberId}`;
+export async function disconnectUserWebSocket(memberId: number): Promise<void> {
+  try {
+    // 從 Redis 取得用戶 ID
+    const userId = await getUserIdByMemberId(memberId);
     
-    console.log(`🚪 準備離開房間: ${room}`);
-    console.log(`👤 離開用戶: ${userId} (Member ID: ${memberId})`);
-    
-    socket.emit('leave_room', room);
-    console.log(`✅ 已發送離開房間請求: ${room}`);
-    
-    socket.disconnect();
-    socket = null;
-    connectedUsers.delete(memberId);
-    // 清理重試計數器
-    connectionRetries.delete(memberId);
-    console.log(`🔌 用戶 WebSocket 連線已斷開 (Member ID: ${memberId})`);
-    console.log(`🧹 已清理用戶連線記錄和重試計數器`);
-  } else {
-    console.log(`⚠️ 嘗試斷開不存在的連線 (Member ID: ${memberId})`);
+    if (socket && userId) {
+      const room = `member.delivery.medicine.${memberId}`;
+      
+      console.log(`🚪 準備離開房間: ${room}`);
+      console.log(`👤 離開用戶: ${userId} (Member ID: ${memberId})`);
+      
+      socket.emit('leave_room', room);
+      console.log(`✅ 已發送離開房間請求: ${room}`);
+      
+      socket.disconnect();
+      socket = null;
+      
+      // 從 Redis 移除連線記錄
+      const removed = await removeWebSocketConnection(userId);
+      if (removed) {
+        console.log(`✅ 已從 Redis 移除 WebSocket 連線記錄 - ${userId}`);
+      }
+      
+      console.log(`🔌 用戶 WebSocket 連線已斷開 (Member ID: ${memberId})`);
+    } else {
+      console.log(`⚠️ 嘗試斷開不存在的連線 (Member ID: ${memberId})`);
+      
+      // 即使連線不存在，也要確保 Redis 中的記錄被清除
+      if (userId) {
+        await removeWebSocketConnection(userId);
+      }
+    }
+  } catch (error) {
+    console.error('❌ 斷開 WebSocket 連線時發生錯誤:', error);
   }
 }
 
 // 為特定用戶建立 WebSocket 連線
-export function connectUserWebSocket(userId: string, memberId: number, token: string): void {
+export async function connectUserWebSocket(userId: string, memberId: number, token: string): Promise<void> {
   const WEBSOCKET_URL = process.env.WEBSOCKET_URL || '';
   
   console.log('🔌 初始化用戶 WebSocket 連線...');
@@ -127,20 +128,18 @@ export function connectUserWebSocket(userId: string, memberId: number, token: st
   }
   
   // 如果用戶已經連線，先斷開舊連線
-  if (connectedUsers.has(memberId)) {
+  const existingConnection = await isUserConnectedToWebSocket(userId);
+  if (existingConnection) {
     console.log(`🔄 用戶 ${userId} (Member ID: ${memberId}) 已有連線，先斷開舊連線`);
-    disconnectUserWebSocket(memberId);
+    await disconnectUserWebSocket(memberId);
   }
-  
-  // 重置重試計數器
-  connectionRetries.delete(memberId);
   
   // 開始連線
   connectUserWebSocketInternal(userId, memberId, token, wsUrl);
 }
 
 // 內部連線函數
-function connectUserWebSocketInternal(userId: string, memberId: number, token: string, wsUrl: string): void {
+async function connectUserWebSocketInternal(userId: string, memberId: number, token: string, wsUrl: string): Promise<void> {
   console.log(`🔌 嘗試連接 WebSocket: ${wsUrl}`);
   console.log(`🔑 Token 長度: ${token?.length || 0}`);
   
@@ -160,11 +159,8 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     },
   });
   
-  socket.on('connect', () => {
+  socket.on('connect', async () => {
     console.log(`✅ 用戶 ${userId} WebSocket 連線成功，Member ID: ${memberId}`);
-    
-    // 重置重試計數器
-    connectionRetries.delete(memberId);
     
     // 加入房間
     const room = `member.delivery.medicine.${memberId}`;
@@ -174,8 +170,20 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     socket!.emit('join_room', room);
     console.log(`✅ 已發送加入房間請求: ${room}`);
     
-    // 記錄連線
-    connectedUsers.set(memberId, userId);
+    // 儲存連線狀態到 Redis
+    const connectionSaved = await setWebSocketConnection(userId, {
+      memberId: memberId,
+      socketId: socket!.id,
+      connectedAt: Date.now(),
+      accessToken: token
+    });
+    
+    if (connectionSaved) {
+      console.log(`✅ WebSocket 連線狀態已儲存到 Redis - ${userId}`);
+    } else {
+      console.warn(`⚠️ 無法儲存 WebSocket 連線狀態到 Redis - ${userId}`);
+    }
+    
     console.log(`📝 已記錄用戶連線: Member ID ${memberId} -> User ID ${userId}`);
   });
   
@@ -279,7 +287,7 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     console.error('🔄 將嘗試重新連線...');
   });
   
-  socket.on('reconnect', (attemptNumber) => {
+  socket.on('reconnect', async (attemptNumber) => {
     console.log(`🔄 WebSocket 重新連線成功 (嘗試 ${attemptNumber} 次)`);
     // 重連成功後重新加入房間
     const room = `member.delivery.medicine.${memberId}`;
@@ -288,6 +296,9 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     
     socket!.emit('join_room', room);
     console.log(`✅ 重連後已發送加入房間請求: ${room}`);
+    
+    // 更新 Redis 中的連線狀態
+    await updateWebSocketHeartbeat(userId);
     
     // 重新監聽廣播頻道
     const broadcastChannel = `member.deliveryMedicine.${memberId}`;
@@ -298,28 +309,27 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     console.error('❌ WebSocket 重新連線錯誤:', error);
   });
   
-  socket.on('reconnect_failed', () => {
+  socket.on('reconnect_failed', async () => {
     console.error('❌ WebSocket 重新連線失敗 - 已達到最大重試次數');
-    // 清理連線記錄
-    connectedUsers.delete(memberId);
+    // 清理 Redis 中的連線記錄
+    await removeWebSocketConnection(userId);
     socket = null;
   });
   
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', async (reason) => {
     console.log(`🔌 用戶 ${userId} WebSocket 斷線，原因: ${reason}`);
     
     // 根據斷線原因決定處理方式
     if (reason === 'io client disconnect') {
       // 手動斷線，清理連線記錄
-      console.log(`� 手動斷線，清理連線記錄`);
-      connectedUsers.delete(memberId);
-      connectionRetries.delete(memberId);
+      console.log(`👋 手動斷線，清理連線記錄`);
+      await removeWebSocketConnection(userId);
       socket = null;
     } else if (reason === 'ping timeout' || reason === 'transport close' || reason === 'transport error') {
       // 網路相關斷線，在 Vercel 環境下很常見
       console.log(`🌐 網路斷線 (${reason})，這在 Vercel serverless 環境下是正常的`);
       console.log(`🔄 保持連線記錄，等待下次用戶操作時重新連線`);
-      // 清理當前 socket 但保留用戶記錄，以便下次重連
+      // 清理當前 socket 但保留 Redis 記錄，以便下次重連
       socket = null;
     } else {
       // 其他原因的斷線
@@ -330,39 +340,42 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
 }
 
 // 檢查並重新連線（用於用戶操作時）
-export function ensureUserWebSocketConnection(userId: string): boolean {
-  const memberId = getUserMemberId(userId);
-  
-  if (!memberId) {
-    console.log(`❌ 用戶 ${userId} 未找到 Member ID，無法建立 WebSocket 連線`);
-    return false;
-  }
-  
-  // 如果已經有活躍連線，不需要重連
-  if (socket && socket.connected && connectedUsers.has(memberId)) {
-    console.log(`✅ 用戶 ${userId} WebSocket 連線正常`);
-    return true;
-  }
-  
-  // 如果連線已斷開但用戶記錄還在，嘗試重新連線
-  if (connectedUsers.has(memberId)) {
+export async function ensureUserWebSocketConnection(userId: string): Promise<boolean> {
+  try {
+    // 從 Redis 獲取用戶的 WebSocket 連線狀態
+    const connection = await getWebSocketConnection(userId);
+    
+    if (!connection) {
+      console.log(`❌ 用戶 ${userId} 未找到 WebSocket 連線記錄，無法建立連線`);
+      return false;
+    }
+    
+    const { memberId, accessToken } = connection;
+    
+    // 如果已經有活躍連線，不需要重連
+    if (socket && socket.connected) {
+      console.log(`✅ 用戶 ${userId} WebSocket 連線正常`);
+      // 更新心跳時間
+      await updateWebSocketHeartbeat(userId);
+      return true;
+    }
+    
+    // 如果連線已斷開但記錄還在，嘗試重新連線
     console.log(`🔄 檢測到用戶 ${userId} 連線中斷，嘗試重新連線...`);
     
-    // 從用戶狀態獲取 token
-    const userState = getUserState(userId);
-    if (userState && userState.accessToken) {
-      connectUserWebSocket(userId, memberId, userState.accessToken);
+    if (accessToken) {
+      await connectUserWebSocket(userId, memberId, accessToken);
       return true;
     } else {
       console.error(`❌ 無法獲取用戶 ${userId} 的 access token，無法重新連線`);
       // 清理連線記錄
-      connectedUsers.delete(memberId);
+      await removeWebSocketConnection(userId);
       return false;
     }
+  } catch (error) {
+    console.error('❌ 檢查 WebSocket 連線時發生錯誤:', error);
+    return false;
   }
-  
-  console.log(`❌ 用戶 ${userId} 未建立 WebSocket 連線`);
-  return false;
 }
 
 // 測試 WebSocket 連線
