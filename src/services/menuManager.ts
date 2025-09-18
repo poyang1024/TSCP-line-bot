@@ -116,6 +116,9 @@ export async function createMemberRichMenu(client: Client): Promise<string> {
 // 動態切換選單
 export async function updateUserRichMenu(client: Client, userId: string, isLoggedIn: boolean): Promise<void> {
   try {
+    console.log(`🎨 Updating rich menu for user ${userId}, isLoggedIn: ${isLoggedIn}`)
+    console.log(`🎨 Available menu IDs - GUEST: ${RICH_MENU_IDS.GUEST}, MEMBER: ${RICH_MENU_IDS.MEMBER}`)
+    
     // 先解除目前的選單綁定
     try {
       await client.unlinkRichMenuFromUser(userId)
@@ -132,8 +135,15 @@ export async function updateUserRichMenu(client: Client, userId: string, isLogge
       // 未登入：顯示訪客選單
       await client.linkRichMenuToUser(userId, RICH_MENU_IDS.GUEST)
       console.log(`✅ Switched to guest menu for user: ${userId}`)
+      
+      // 如果應該是會員但卻切換到訪客選單，記錄警告
+      if (isLoggedIn) {
+        console.warn(`⚠️ 用戶已登入但切換到訪客選單 - MEMBER_RICH_MENU_ID 可能未設定: ${RICH_MENU_IDS.MEMBER}`)
+      }
     } else {
       console.warn('Rich menu IDs not configured properly')
+      console.warn(`GUEST_RICH_MENU_ID: ${RICH_MENU_IDS.GUEST}`)
+      console.warn(`MEMBER_RICH_MENU_ID: ${RICH_MENU_IDS.MEMBER}`)
     }
   } catch (error) {
     console.error('❌ Failed to update rich menu:', error)
