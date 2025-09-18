@@ -1,10 +1,11 @@
 import { PostbackEvent, Client } from '@line/bot-sdk';
 import { getUserState, updateUserState } from '../services/userService';
 import { createOrder, getOrderDetail } from '../services/apiService';
-import { createOrderDetailCard } from '../templates/messageTemplates';
+import { createOrderDetailCard, createPharmacyCarousel, createPharmacyPaginationButtons } from '../templates/messageTemplates';
 import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
+import { handlePharmacyPageNavigation } from './pharmacyHandler';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -70,6 +71,10 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
         await handlePharmacySelection(event, client, data);
         return { success: true, action: 'select_pharmacy' };
         
+      case 'pharmacy_page':
+        await handlePharmacyPageNavigation(event, client, data);
+        return { success: true, action: 'pharmacy_page' };
+        
       case 'view_order_detail':
         await handleViewOrderDetail(event, client, data);
         return { success: true, action: 'view_order_detail' };
@@ -102,6 +107,8 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
     }
   } catch (error) {
     console.error('❌ Postback 處理錯誤:', error);
+    
+    // 嘗試發送錯誤訊息，但要處理 replyToken 可能已被使用的情況
     try {
       await client.replyMessage(event.replyToken, {
         type: 'text',
@@ -109,6 +116,19 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
       });
     } catch (replyError) {
       console.error('❌ 回覆錯誤訊息失敗:', replyError);
+      
+      // 如果 replyMessage 失敗（可能是 replyToken 已被使用），嘗試使用 pushMessage
+      if (replyError instanceof Error && replyError.message.includes('400')) {
+        console.log('🔄 replyToken 已被使用，改用 pushMessage 發送錯誤訊息');
+        try {
+          await client.pushMessage(event.source.userId!, {
+            type: 'text',
+            text: '❌ 處理請求時發生錯誤，請稍後再試。'
+          });
+        } catch (pushError) {
+          console.error('❌ pushMessage 也失敗:', pushError);
+        }
+      }
     }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
