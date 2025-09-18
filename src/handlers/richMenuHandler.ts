@@ -5,7 +5,7 @@ import { updateUserRichMenu } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
-import { createOrderDetailCard } from '../templates/messageTemplates'
+import { createOrderDetailCard, createOrderCarousel } from '../templates/messageTemplates'
 
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
@@ -353,43 +353,40 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       })
       return
     }
-    
+
     // 顯示最近的3筆訂單 (確保不超過 LINE 的訊息限制)
     const recentOrders = orders.slice(0, 3)
     
     try {
-      const orderCards = recentOrders.map(order => createOrderDetailCard(order))
+      const carouselMessage = createOrderCarousel(recentOrders)
       
-      // 先發送概要訊息
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單記錄，以下是最近的 ${recentOrders.length} 筆訂單：`
-      })
+      // 發送輪播訊息
+      await client.replyMessage(event.replyToken, carouselMessage)
       
-      // 然後逐一發送訂單卡片
-      for (const orderCard of orderCards) {
-        try {
-          await client.pushMessage(userId, orderCard)
-          // 添加小延遲避免發送太快
-          await new Promise(resolve => setTimeout(resolve, 100))
-        } catch (cardError) {
-          console.error('發送訂單卡片錯誤:', cardError)
-        }
+      // 如果有更多訂單，發送提示訊息
+      if (orders.length > 3) {
+        await client.pushMessage(userId, {
+          type: 'text',
+          text: `📋 ${userSession.memberName || '會員'}，您共有 ${orders.length} 筆訂單記錄，上面顯示的是最近的 ${recentOrders.length} 筆。\n\n若需查看更多，請聯絡客服。`
+        })
       }
     } catch (cardCreationError) {
       console.error('建立訂單卡片錯誤:', cardCreationError)
+      // 如果卡片創建失敗，發送簡單的錯誤訊息
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。`
+        text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。\n\n請稍後再試或聯絡客服。`
       })
+      return
     }
-    
+
   } catch (error) {
     console.error('查詢訂單錯誤:', error)
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 查詢訂單時發生錯誤，請稍後再試。'
     })
+    return
   }
 }
 
