@@ -13,7 +13,7 @@ import {
   isUserConnectedToWebSocket,
   updateWebSocketHeartbeat
 } from './redisService';
-import { triggerOrderCheck } from './pollingService';
+import { triggerNotificationCheck } from './pollingService';
 
 // 檢查用戶是否已連線（從 Redis 查詢）
 export async function isUserConnected(userId: string): Promise<boolean> {
@@ -50,9 +50,9 @@ export async function connectUserWebSocket(userId: string, memberId: number, tok
       console.log(`✅ 用戶連線狀態已記錄到 Redis - ${userId}`);
     }
     
-    // 觸發一次訂單狀態檢查（替代 WebSocket 即時更新）
-    console.log(`🔄 觸發訂單狀態檢查以替代 WebSocket 更新...`);
-    await triggerOrderCheck(userId);
+    // 觸發一次通知檢查（替代 WebSocket 即時更新）
+    console.log(`🔄 觸發通知檢查以替代 WebSocket 更新...`);
+    await triggerNotificationCheck(userId);
     
     console.log(`📝 已記錄用戶連線: Member ID ${memberId} -> User ID ${userId}`);
     
@@ -118,8 +118,8 @@ export async function ensureUserWebSocketConnection(userId: string): Promise<boo
     console.log(`✅ 用戶 ${userId} 連線正常，觸發狀態檢查`);
     // 更新心跳時間
     await updateWebSocketHeartbeat(userId);
-    // 觸發訂單檢查
-    await triggerOrderCheck(userId);
+    // 觸發通知檢查
+    await triggerNotificationCheck(userId);
     return true;
     
   } catch (error) {
