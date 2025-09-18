@@ -1,98 +1,105 @@
 /**
  * 輪詢服務 - 用於在 Serverless 環境下替代 WebSocket 長連線
+ * 使用通知 API 來檢查新的通知，避免重複發送舊通知
  */
 
-import { getOrders } from './apiService';
-import { getUserLoginState, setUserLastPollTime, getUserLastPollTime } from './redisService';
-import { sendOrderStatusUpdate } from '../handlers/notificationHandler';
+import { getNotifications, markNotificationAsRead, Notification } from './apiService';
+import { getUserLoginState, setUserLastNotificationCheck, getUserLastNotificationCheck } from './redisService';
+import { sendNotification } from '../handlers/notificationHandler';
 
 /**
- * 檢查用戶的訂單更新
+ * 檢查用戶的新通知
  */
-export async function checkUserOrderUpdates(userId: string): Promise<boolean> {
+export async function checkUserNotifications(userId: string): Promise<boolean> {
   try {
     // 獲取用戶登入狀態
     const loginState = await getUserLoginState(userId);
     if (!loginState) {
-      console.log(`⚠️ 用戶 ${userId} 未登入，跳過輪詢檢查`);
+      console.log(`⚠️ 用戶 ${userId} 未登入，跳過通知檢查`);
       return false;
     }
 
+    const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+    
     // 獲取上次檢查時間
-    const lastPollTime = await getUserLastPollTime(userId);
-    const now = Date.now();
+    const lastCheckTime = await getUserLastNotificationCheck(userId);
     
-    // 避免頻繁輪詢（最少間隔 30 秒）
-    if (lastPollTime && (now - lastPollTime) < 30000) {
-      console.log(`⏰ 用戶 ${userId} 輪詢間隔太短，跳過檢查`);
+    // 如果是第一次檢查，設定為30分鐘前開始檢查，避免發送過多舊通知
+    const startTime = lastCheckTime || (now - 1800); // 30分鐘前
+    
+    console.log(`🔍 檢查用戶 ${userId} 的新通知 (從 ${new Date(startTime * 1000).toISOString()} 開始)...`);
+
+    // 查詢未讀通知
+    const notifications = await getNotifications(
+      loginState.accessToken,
+      startTime,
+      now,
+      false // 只查詢未讀通知
+    );
+    
+    if (notifications.length === 0) {
+      console.log(`📭 用戶 ${userId} 沒有新通知`);
+      await setUserLastNotificationCheck(userId, now);
       return false;
     }
 
-    console.log(`🔍 檢查用戶 ${userId} 的訂單更新...`);
-
-    // 查詢最新訂單
-    const orders = await getOrders(loginState.accessToken);
+    console.log(`📬 用戶 ${userId} 有 ${notifications.length} 個新通知`);
     
-    if (orders.length === 0) {
-      await setUserLastPollTime(userId, now);
-      return false;
-    }
-
-    // 檢查是否有最近更新的訂單（5分鐘內）
-    // 注意：Order 類型可能沒有 updated_at，我們使用 state 變化作為更新指標
-    const recentOrders = orders.slice(0, 3); // 獲取最近的訂單
-
-    if (recentOrders.length > 0) {
-      console.log(`📢 檢查到 ${recentOrders.length} 個訂單狀態`);
-      
-      // 發送訂單狀態通知
-      for (const order of recentOrders) {
-        await sendOrderStatusUpdate(userId, {
-          id: order.id,
-          order_code: order.order_code,
-          member_id: loginState.memberId,
-          state: order.state
-        });
+    // 發送通知並標記為已讀
+    let hasNewNotifications = false;
+    for (const notification of notifications) {
+      try {
+        // 發送通知到 LINE
+        await sendNotification(userId, notification);
+        
+        // 標記通知為已讀
+        await markNotificationAsRead(loginState.accessToken, notification.id);
+        
+        hasNewNotifications = true;
+        console.log(`✅ 已處理通知 ${notification.id}: ${notification.subject}`);
+      } catch (error) {
+        console.error(`❌ 處理通知 ${notification.id} 時發生錯誤:`, error);
       }
-      
-      await setUserLastPollTime(userId, now);
-      return true;
     }
-
-    await setUserLastPollTime(userId, now);
-    return false;
+    
+    // 更新最後檢查時間
+    await setUserLastNotificationCheck(userId, now);
+    
+    return hasNewNotifications;
+    
   } catch (error) {
-    console.error(`❌ 檢查用戶 ${userId} 訂單更新時發生錯誤:`, error);
+    console.error('❌ 檢查用戶通知時發生錯誤:', error);
     return false;
   }
 }
 
 /**
- * 在用戶操作時觸發訂單檢查
+ * 觸發用戶通知檢查
  */
-export async function triggerOrderCheck(userId: string): Promise<void> {
+export async function triggerNotificationCheck(userId: string): Promise<void> {
   try {
-    // 異步執行，不阻塞主要功能
-    setImmediate(async () => {
-      await checkUserOrderUpdates(userId);
-    });
+    console.log(`🔔 觸發用戶 ${userId} 的通知檢查`);
+    await checkUserNotifications(userId);
   } catch (error) {
-    console.error(`❌ 觸發訂單檢查失敗:`, error);
+    console.error('❌ 觸發通知檢查時發生錯誤:', error);
   }
 }
 
 /**
- * 模擬 WebSocket 房間廣播檢查
+ * 模擬房間廣播檢查（保持 WebSocket 相容性）
+ * 在 serverless 環境中，這個函數會觸發通知檢查
  */
-export async function simulateRoomBroadcastCheck(userId: string, memberId: number): Promise<void> {
+export async function simulateRoomBroadcastCheck(userId: string, memberId?: number): Promise<void> {
   try {
-    console.log(`🔄 為用戶 ${userId} (Member ID: ${memberId}) 模擬房間廣播檢查`);
-    
-    // 執行訂單更新檢查
-    await checkUserOrderUpdates(userId);
-    
+    const memberInfo = memberId ? ` (Member ID: ${memberId})` : '';
+    console.log(`📡 模擬房間廣播檢查，觸發用戶 ${userId}${memberInfo} 的通知檢查`);
+    await checkUserNotifications(userId);
     console.log(`✅ 完成用戶 ${userId} 的廣播檢查模擬`);
   } catch (error) {
-    console.error(`❌ 模擬房間廣播檢查失敗:`, error);
+    console.error('❌ 模擬廣播檢查時發生錯誤:', error);
   }
 }
+
+// 保持向後相容性的別名
+export const triggerOrderCheck = triggerNotificationCheck;
+export const checkUserOrderUpdates = checkUserNotifications;
