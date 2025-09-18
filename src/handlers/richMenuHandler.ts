@@ -16,6 +16,22 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
   
+  // 檢查是否為重新投遞事件
+  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
+    console.log('🔄 Rich Menu 檢測到重新投遞事件，使用 pushMessage 回應');
+    
+    try {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: '⚠️ 檢測到重複操作，請避免快速點擊選單。\n\n如需協助，請稍候再試。'
+      });
+    } catch (pushError) {
+      console.error('❌ 推送重新投遞提醒失敗:', pushError);
+    }
+    
+    return;
+  }
+  
   // 對於會員功能，檢查並確保 WebSocket 連線
   const memberActions = ['member_center', 'order_history', 'pharmacist_consultation']
   if (memberActions.includes(action || '')) {
@@ -413,10 +429,21 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
       await updateUserRichMenu(client, userId, false)
       
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
+      const message = {
+        type: 'text' as const,
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
-      })
+      }
+      
+      try {
+        await client.replyMessage(event.replyToken, message)
+      } catch (replyError) {
+        console.error('❌ replyMessage 失敗，改用 pushMessage:', replyError)
+        try {
+          await client.pushMessage(userId, message)
+        } catch (pushError) {
+          console.error('❌ pushMessage 也失敗:', pushError)
+        }
+      }
       return
     }
     
@@ -443,10 +470,21 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
   
   // 提示用戶上傳藥單
   const memberName = userSession.memberName || ''
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
+  const message = {
+    type: 'text' as const,
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
-  })
+  }
+  
+  try {
+    await client.replyMessage(event.replyToken, message)
+  } catch (replyError) {
+    console.error('❌ replyMessage 失敗，改用 pushMessage:', replyError)
+    try {
+      await client.pushMessage(userId, message)
+    } catch (pushError) {
+      console.error('❌ pushMessage 也失敗:', pushError)
+    }
+  }
 }
 
 // 處理本地密碼修改 (開發環境)
