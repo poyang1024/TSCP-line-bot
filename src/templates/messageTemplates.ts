@@ -122,14 +122,18 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
   
   const columns = currentPagePharmacies.map(pharmacy => ({
     title: pharmacy.name,
-    text: `${pharmacy.org_name}\n📍 ${pharmacy.address}`,
+    text: `${pharmacy.org_name}\n📍 ${pharmacy.address}${pharmacy.phone ? `\n📞 ${pharmacy.phone}` : ''}`,
     actions: [
       {
         type: 'postback' as const,
         label: '選擇此藥局',
         data: `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
       },
-      {
+      pharmacy.phone ? {
+        type: 'uri' as const,
+        label: '📞 聯絡藥局',
+        uri: `tel:${pharmacy.phone}`
+      } : {
         type: 'uri' as const,
         label: '查看地圖',
         uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
@@ -353,7 +357,11 @@ export function createOrderCarousel(orders: Order[]): Message {
         label: '查看詳情',
         data: `action=view_order_detail&order_id=${order.id || 0}`
       },
-      {
+      order.area_phone ? {
+        type: 'uri' as const,
+        label: '📞 聯絡藥局',
+        uri: `tel:${order.area_phone}`
+      } : {
         type: 'postback' as const,
         label: '聯絡藥局',
         data: `action=contact_pharmacy&order_id=${order.id || 0}`

@@ -51,6 +51,7 @@ export interface Pharmacy {
   org_name: string;
   name: string;
   address: string;
+  phone?: string;
 }
 
 // 訂單資料
@@ -60,6 +61,7 @@ export interface Order {
   confirmation_code?: string;
   state: number;
   area_name: string;
+  area_phone?: string;
   is_delivery: boolean;
   member_name: string;
   hospital?: string;

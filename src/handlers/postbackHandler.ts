@@ -79,6 +79,10 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
         await handleViewOrderDetail(event, client, data);
         return { success: true, action: 'view_order_detail' };
         
+      case 'contact_pharmacy':
+        await handleContactPharmacy(event, client, data);
+        return { success: true, action: 'contact_pharmacy' };
+        
       case 'view_orders':
         // 重新使用訂單查詢處理器
         const mockEvent = {
@@ -419,6 +423,55 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   }
 }
 
+async function handleContactPharmacy(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
+  const userId = event.source.userId!;
+  
+  // 立即發送確認訊息，讓用戶知道系統已收到請求
+  await client.replyMessage(event.replyToken, {
+    type: 'text',
+    text: '📞 正在查詢藥局聯絡資訊，請稍候...'
+  });
+  
+  const userState = getUserState(userId);
+  const orderId = data.get('order_id');
+  
+  if (!userState.accessToken || !orderId) {
+    await client.pushMessage(userId, {
+      type: 'text',
+      text: '❌ 無法查看藥局聯絡資訊'
+    });
+    return;
+  }
+  
+  try {
+    const order = await getOrderDetail(userState.accessToken, parseInt(orderId));
+    
+    if (order && order.area_phone) {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: `📞 藥局聯絡資訊\n\n🏥 ${order.area_name}\n📞 ${order.area_phone}\n\n您可以直接撥打此電話聯絡藥局。`
+      });
+    } else if (order) {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: `🏥 藥局：${order.area_name}\n\n📞 很抱歉，此藥局暫無提供電話聯絡資訊。\n\n您可以直接前往藥局或查看地圖位置。`
+      });
+    } else {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: '❌ 找不到訂單資訊'
+      });
+    }
+    
+  } catch (error) {
+    console.error('查看藥局聯絡資訊錯誤:', error);
+    await client.pushMessage(userId, {
+      type: 'text',
+      text: '❌ 查看藥局聯絡資訊時發生錯誤'
+    });
+  }
+}
+
 async function handleViewOrderDetail(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
   
@@ -446,6 +499,9 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
       let detailText = `📋 訂單詳情\n\n`;
       detailText += `🆔 訂單編號：${order.order_code}\n`;
       detailText += `🏥 藥局：${order.area_name}\n`;
+      if (order.area_phone) {
+        detailText += `📞 藥局電話：${order.area_phone}\n`;
+      }
       detailText += `📊 狀態：${getOrderStateText(order.state)}\n`;
       detailText += `🚚 取藥方式：${order.is_delivery ? '外送到府' : '到店自取'}\n`;
       
