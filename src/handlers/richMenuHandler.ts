@@ -3,7 +3,7 @@ import { verifyUserToken, refreshUserToken } from '../services/jwtService'
 import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
 import { updateUserRichMenu } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
-import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId } from '../services/websocketService'
+import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
 import { createOrderDetailCard } from '../templates/messageTemplates'
 
@@ -15,6 +15,13 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
+  
+  // 對於會員功能，檢查並確保 WebSocket 連線
+  const memberActions = ['member_center', 'order_history', 'pharmacist_consultation']
+  if (memberActions.includes(action || '')) {
+    console.log(`🔍 檢查用戶 ${userId} 的 WebSocket 連線狀態...`)
+    ensureUserWebSocketConnection(userId)
+  }
   
   switch (action) {
     case 'login_required':

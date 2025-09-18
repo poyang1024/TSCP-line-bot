@@ -138,11 +138,13 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     transports: ['websocket', 'polling'], // 添加 polling 作為備選
     timeout: 20000, // 增加超時時間到 20 秒
     reconnection: true, // 啟用自動重連
-    reconnectionAttempts: 5, // 最多重連 5 次
+    reconnectionAttempts: 3, // 減少重連次數（Vercel 環境下重連意義不大）
     reconnectionDelay: 1000, // 重連延遲 1 秒
-    reconnectionDelayMax: 5000, // 最大重連延遲 5 秒
+    reconnectionDelayMax: 3000, // 最大重連延遲 3 秒
     randomizationFactor: 0.5, // 隨機化因子
     forceNew: true, // 強制建立新連線
+    upgrade: true, // 允許協議升級
+    rememberUpgrade: true, // 記住升級
     auth: {
       token: token,
     },
@@ -222,14 +224,61 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
   socket.on('disconnect', (reason) => {
     console.log(`🔌 用戶 ${userId} WebSocket 斷線，原因: ${reason}`);
     
-    // 如果不是手動斷線，保持連線記錄以便自動重連
-    if (reason !== 'io client disconnect') {
-      console.log(`🔄 非手動斷線，將保持連線記錄以便重連`);
-    } else {
+    // 根據斷線原因決定處理方式
+    if (reason === 'io client disconnect') {
+      // 手動斷線，清理連線記錄
+      console.log(`� 手動斷線，清理連線記錄`);
       connectedUsers.delete(memberId);
+      connectionRetries.delete(memberId);
+      socket = null;
+    } else if (reason === 'ping timeout' || reason === 'transport close' || reason === 'transport error') {
+      // 網路相關斷線，在 Vercel 環境下很常見
+      console.log(`🌐 網路斷線 (${reason})，這在 Vercel serverless 環境下是正常的`);
+      console.log(`🔄 保持連線記錄，等待下次用戶操作時重新連線`);
+      // 清理當前 socket 但保留用戶記錄，以便下次重連
+      socket = null;
+    } else {
+      // 其他原因的斷線
+      console.log(`❓ 未知斷線原因: ${reason}，保持連線記錄以便重連`);
       socket = null;
     }
   });
+}
+
+// 檢查並重新連線（用於用戶操作時）
+export function ensureUserWebSocketConnection(userId: string): boolean {
+  const memberId = getUserMemberId(userId);
+  
+  if (!memberId) {
+    console.log(`❌ 用戶 ${userId} 未找到 Member ID，無法建立 WebSocket 連線`);
+    return false;
+  }
+  
+  // 如果已經有活躍連線，不需要重連
+  if (socket && socket.connected && connectedUsers.has(memberId)) {
+    console.log(`✅ 用戶 ${userId} WebSocket 連線正常`);
+    return true;
+  }
+  
+  // 如果連線已斷開但用戶記錄還在，嘗試重新連線
+  if (connectedUsers.has(memberId)) {
+    console.log(`🔄 檢測到用戶 ${userId} 連線中斷，嘗試重新連線...`);
+    
+    // 從用戶狀態獲取 token
+    const userState = getUserState(userId);
+    if (userState && userState.accessToken) {
+      connectUserWebSocket(userId, memberId, userState.accessToken);
+      return true;
+    } else {
+      console.error(`❌ 無法獲取用戶 ${userId} 的 access token，無法重新連線`);
+      // 清理連線記錄
+      connectedUsers.delete(memberId);
+      return false;
+    }
+  }
+  
+  console.log(`❌ 用戶 ${userId} 未建立 WebSocket 連線`);
+  return false;
 }
 
 // 測試 WebSocket 連線
