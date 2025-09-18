@@ -184,13 +184,7 @@ export async function searchPharmacies(token: string, keyword?: string): Promise
 // 查詢訂單
 export async function getOrders(token: string, state?: number): Promise<Order[]> {
   try {
-    const params: any = {};
-    if (state !== undefined) {
-      params.state = state;
-    }
-    params.state = 0;
     const response = await api.get('/delivery/medicine', {
-      params,
       headers: {
         'Authorization': `Bearer ${token}`
       }
