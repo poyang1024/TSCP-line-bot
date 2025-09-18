@@ -1,18 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyUserToken, JWTPayload } from '../services/jwtService';
+import { getUserLoginState, extendUserLoginSession } from '../services/redisService';
 
 // 擴展 Request 介面以包含用戶資訊
 declare global {
   namespace Express {
     interface Request {
-      user?: JWTPayload;
+      user?: JWTPayload & {
+        memberId?: number;
+        accessToken?: string;
+        memberName?: string;
+      };
       lineUserId?: string;
     }
   }
 }
 
 // JWT 中間件
-export function jwtMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function jwtMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
     // 從 cookie 中取得 JWT token
     const token = req.cookies?.jwt_token;
@@ -26,8 +31,36 @@ export function jwtMiddleware(req: Request, res: Response, next: NextFunction) {
     const decoded = verifyUserToken(token);
     
     if (decoded) {
-      req.user = decoded;
-      req.lineUserId = decoded.lineId;
+      // 驗證 Redis 中的登入狀態
+      const loginState = await getUserLoginState(decoded.lineId);
+      
+      if (loginState) {
+        // 用戶已登入，設置用戶資訊
+        req.user = {
+          ...decoded,
+          memberId: loginState.memberId,
+          accessToken: loginState.accessToken,
+          memberName: loginState.memberName
+        };
+        req.lineUserId = decoded.lineId;
+        
+        // 延長登入 session
+        await extendUserLoginSession(decoded.lineId);
+        console.log(`✅ JWT 驗證成功並延長 session - ${decoded.lineId}`);
+      } else {
+        // JWT 有效但 Redis 中沒有登入狀態，可能是登入過期
+        console.warn(`⚠️ JWT 有效但登入狀態已過期 - ${decoded.lineId}`);
+        req.user = undefined;
+        
+        // 清除無效的 JWT cookie
+        res.clearCookie('jwt_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax'
+        });
+      }
+    } else {
+      req.user = undefined;
     }
     
     next();
