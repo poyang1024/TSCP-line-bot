@@ -10,6 +10,7 @@ import { initWebSocket } from './services/websocketService';
 import { setupRoutes } from './routes';
 import { initializeRichMenus } from './services/menuManager';
 import authRoutes from './routes/authRoutes';
+import { initRedis, checkNewDeployment, clearAllLoginStates, clearAllWebSocketConnections } from './services/redisService';
 
 dotenv.config();
 
@@ -216,16 +217,49 @@ async function handleEvent(event: WebhookEvent): Promise<{ success: boolean; eve
   }
 }
 
-// 初始化 WebSocket 連線
-initWebSocket();
-
-// 初始化圖文選單（僅在開發環境）
-if (process.env.NODE_ENV !== 'production') {
-  console.log('🎨 Initializing Rich Menus...');
-  initializeRichMenus(client).catch(error => {
-    console.error('❌ Failed to initialize rich menus:', error);
-  });
+// 初始化服務
+async function initializeServices() {
+  try {
+    console.log('🔧 正在初始化服務...');
+    
+    // 初始化 Redis
+    await initRedis();
+    
+    // 檢查是否為新部署
+    const packageJson = require('../package.json');
+    const currentVersion = `${packageJson.version}-${Date.now()}`;
+    const isNewDeployment = await checkNewDeployment(currentVersion);
+    
+    if (isNewDeployment) {
+      console.log('🚀 檢測到新部署，清除所有用戶登入狀態...');
+      
+      const clearedLogins = await clearAllLoginStates();
+      const clearedConnections = await clearAllWebSocketConnections();
+      
+      console.log(`✅ 已清除 ${clearedLogins} 個登入狀態`);
+      console.log(`✅ 已清除 ${clearedConnections} 個 WebSocket 連線`);
+      console.log('📢 所有用戶將需要重新登入');
+    } else {
+      console.log('♻️ 應用重啟，保持現有登入狀態');
+    }
+    
+    // 初始化 WebSocket 連線
+    initWebSocket();
+    
+    // 初始化圖文選單（僅在開發環境）
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🎨 Initializing Rich Menus...');
+      await initializeRichMenus(client);
+    }
+    
+    console.log('✅ 所有服務初始化完成');
+  } catch (error) {
+    console.error('❌ 服務初始化失敗:', error);
+  }
 }
+
+// 初始化服務
+initializeServices();
 
 // 顯示所有註冊的路由（僅在開發環境）
 if (process.env.NODE_ENV !== 'production') {
