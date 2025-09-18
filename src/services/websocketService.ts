@@ -86,6 +86,20 @@ function retryConnection(userId: string, memberId: number, token: string, wsUrl:
   }, delay);
 }
 
+// 斷開用戶 WebSocket 連線
+export function disconnectUserWebSocket(memberId: number): void {
+  if (socket && connectedUsers.has(memberId)) {
+    const room = `member.delivery.medicine.${memberId}`;
+    socket.emit('leave_room', room);
+    socket.disconnect();
+    socket = null;
+    connectedUsers.delete(memberId);
+    // 清理重試計數器
+    connectionRetries.delete(memberId);
+    console.log(`🔌 用戶 WebSocket 連線已斷開 (Member ID: ${memberId})`);
+  }
+}
+
 // 為特定用戶建立 WebSocket 連線
 export function connectUserWebSocket(userId: string, memberId: number, token: string): void {
   const WEBSOCKET_URL = process.env.WEBSOCKET_URL || '';
@@ -115,9 +129,6 @@ export function connectUserWebSocket(userId: string, memberId: number, token: st
   connectUserWebSocketInternal(userId, memberId, token, wsUrl);
 }
 
-// 內部連線函數
-function connectUserWebSocketInternal(userId: string, memberId: number, token: string, wsUrl: string): void {
-  
 // 內部連線函數
 function connectUserWebSocketInternal(userId: string, memberId: number, token: string, wsUrl: string): void {
   console.log(`🔌 嘗試連接 WebSocket: ${wsUrl}`);
@@ -219,33 +230,6 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
       socket = null;
     }
   });
-}
-  
-  socket.on('disconnect', (reason) => {
-    console.log(`🔌 用戶 ${userId} WebSocket 斷線，原因: ${reason}`);
-    
-    // 如果不是手動斷線，保持連線記錄以便自動重連
-    if (reason !== 'io client disconnect') {
-      console.log(`🔄 非手動斷線，將保持連線記錄以便重連`);
-    } else {
-      connectedUsers.delete(memberId);
-      socket = null;
-    }
-  });
-}
-
-// 斷開用戶 WebSocket 連線
-export function disconnectUserWebSocket(memberId: number): void {
-  if (socket && connectedUsers.has(memberId)) {
-    const room = `member.delivery.medicine.${memberId}`;
-    socket.emit('leave_room', room);
-    socket.disconnect();
-    socket = null;
-    connectedUsers.delete(memberId);
-    // 清理重試計數器
-    connectionRetries.delete(memberId);
-    console.log(`🔌 用戶 WebSocket 連線已斷開 (Member ID: ${memberId})`);
-  }
 }
 
 // 測試 WebSocket 連線
