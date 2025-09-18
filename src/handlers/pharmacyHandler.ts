@@ -1,6 +1,6 @@
-import { MessageEvent, Client } from '@line/bot-sdk';
+import { MessageEvent, Client, PostbackEvent } from '@line/bot-sdk';
 import { searchPharmacies } from '../services/apiService';
-import { createPharmacyCarousel } from '../templates/messageTemplates';
+import { createPharmacyCarousel, createPharmacyPaginationButtons } from '../templates/messageTemplates';
 import { getUserState, isUserLoggedIn } from '../services/userService';
 
 export async function handlePharmacySearch(event: MessageEvent, client: Client): Promise<void> {
@@ -68,19 +68,94 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       ? `🏥 根據您的地址（${searchKeyword}），找到 ${pharmacies.length} 家藥局：`
       : `🏥 找到 ${pharmacies.length} 家藥局，以下是附近的藥局：`;
     
-    await client.replyMessage(event.replyToken, [
+    // 使用新的分頁藥局輪播
+    const carouselMessage = createPharmacyCarousel(pharmacies, 1); // 第一頁
+    const messages = [
       {
-        type: 'text',
+        type: 'text' as const,
         text: searchResultMessage
       },
-      createPharmacyCarousel(limitedPharmacies)
-    ]);
+      carouselMessage
+    ];
+    
+    // 如果有超過10家藥局，添加分頁按鈕
+    if (pharmacies.length > 10) {
+      const paginationButtons = createPharmacyPaginationButtons(pharmacies, 1);
+      messages.push(paginationButtons);
+    }
+    
+    await client.replyMessage(event.replyToken, messages);
     
   } catch (error) {
     console.error('搜尋藥局錯誤:', error);
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 搜尋藥局時發生錯誤，請稍後再試。'
+    });
+  }
+}
+
+// 處理藥局分頁導航
+export async function handlePharmacyPageNavigation(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
+  try {
+    const userId = event.source.userId;
+    if (!userId) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 無法識別用戶身份'
+      });
+      return;
+    }
+
+    const userState = getUserState(userId);
+    
+    // 檢查用戶是否已登入
+    if (!userState.accessToken || !userState.memberId) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '❌ 請先登入才能查看藥局'
+      });
+      return;
+    }
+
+    const token = userState.accessToken;
+    const page = parseInt(data.get('page') || '1');
+    
+    // 重新搜尋藥局資料
+    const memberAddress = userState.tempData?.memberPersonalInfo?.address;
+    let searchKeyword: string | undefined;
+    
+    if (memberAddress && memberAddress.trim() !== '') {
+      searchKeyword = memberAddress.trim();
+    }
+
+    const pharmacies = await searchPharmacies(token, searchKeyword);
+    
+    if (pharmacies.length === 0) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '🏥 沒有找到可用的藥局。'
+      });
+      return;
+    }
+
+    // 創建指定頁面的輪播
+    const carouselMessage = createPharmacyCarousel(pharmacies, page);
+    const messages = [carouselMessage];
+    
+    // 添加分頁按鈕
+    if (pharmacies.length > 10) {
+      const paginationButtons = createPharmacyPaginationButtons(pharmacies, page);
+      messages.push(paginationButtons);
+    }
+    
+    await client.replyMessage(event.replyToken, messages);
+    
+  } catch (error) {
+    console.error('處理藥局分頁錯誤:', error);
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '❌ 查看藥局時發生錯誤，請稍後再試。'
     });
   }
 }
