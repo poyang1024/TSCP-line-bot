@@ -114,14 +114,42 @@
             transition: border-color 0.3s ease;
         }
         
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
-        .form-group input.error {
+        .form-group input.error,
+        .form-group select.error {
             border-color: #dc3545;
+        }
+        
+        .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            background-color: white;
+            transition: border-color 0.3s ease;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            background-size: 16px;
+            padding-right: 45px;
+        }
+        
+        .address-row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .address-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
         }
         
         .form-group .help-text {
@@ -325,11 +353,45 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="register-address">地址</label>
-                    <input type="text" id="register-address" name="address" 
-                           placeholder="請輸入地址（選填）" 
-                           autocomplete="street-address" 
-                           maxlength="255">
+                    <label>地址</label>
+                    <div class="address-row">
+                        <div class="form-group">
+                            <select id="register-county" name="county">
+                                <option value="彰化縣">彰化縣</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <select id="register-district" name="district">
+                                <option value="">請選擇鄉鎮市區</option>
+                                <option value="彰化市">彰化市</option>
+                                <option value="芬園鄉">芬園鄉</option>
+                                <option value="花壇鄉">花壇鄉</option>
+                                <option value="秀水鄉">秀水鄉</option>
+                                <option value="鹿港鎮">鹿港鎮</option>
+                                <option value="福興鄉">福興鄉</option>
+                                <option value="線西鄉">線西鄉</option>
+                                <option value="和美鎮">和美鎮</option>
+                                <option value="伸港鄉">伸港鄉</option>
+                                <option value="員林市">員林市</option>
+                                <option value="社頭鄉">社頭鄉</option>
+                                <option value="永靖鄉">永靖鄉</option>
+                                <option value="埔心鄉">埔心鄉</option>
+                                <option value="溪湖鎮">溪湖鎮</option>
+                                <option value="大村鄉">大村鄉</option>
+                                <option value="埔鹽鄉">埔鹽鄉</option>
+                                <option value="田中鎮">田中鎮</option>
+                                <option value="北斗鎮">北斗鎮</option>
+                                <option value="田尾鄉">田尾鄉</option>
+                                <option value="埤頭鄉">埤頭鄉</option>
+                                <option value="溪州鄉">溪州鄉</option>
+                                <option value="竹塘鄉">竹塘鄉</option>
+                                <option value="二林鎮">二林鎮</option>
+                                <option value="大城鄉">大城鄉</option>
+                                <option value="芳苑鄉">芳苑鄉</option>
+                                <option value="二水鄉">二水鄉</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 
                 <button type="submit" class="submit-btn">註冊</button>
@@ -483,7 +545,8 @@
             const phone = formData.get('phone').trim();
             const identity = formData.get('identity').trim();
             const name = formData.get('name').trim();
-            const address = formData.get('address').trim();
+            const county = formData.get('county');
+            const district = formData.get('district');
             
             if (!phone || !name) {
                 showAlert('請填寫所有必填欄位', 'error');
@@ -503,8 +566,9 @@
                     requestData.identity = identity;
                 }
                 
-                if (address) {
-                    requestData.address = address;
+                // 組合地址：如果有選擇縣市和鄉鎮市區，則組合為完整地址
+                if (county && district) {
+                    requestData.address = county + district;
                 }
                 
                 const response = await fetch('/api/register', {
