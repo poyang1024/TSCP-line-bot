@@ -412,8 +412,8 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       return
     }
 
-    // 顯示最近的3筆訂單 (確保不超過 LINE 的訊息限制)
-    const recentOrders = orders.slice(0, 3)
+    // 顯示最近的10筆訂單 (確保不超過 LINE 的訊息限制)
+    const recentOrders = orders.slice(orders.length - 10, orders.length)
     
     try {
       const carouselMessage = createOrderCarousel(recentOrders)
@@ -422,7 +422,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       await client.replyMessage(event.replyToken, carouselMessage)
       
       // 如果有更多訂單，發送提示訊息
-      if (orders.length > 3) {
+      if (orders.length > 10) {
         await client.pushMessage(userId, {
           type: 'text',
           text: `📋 ${userSession.memberName || '會員'}，您共有 ${orders.length} 筆訂單記錄，上面顯示的是最近的 ${recentOrders.length} 筆。\n\n若需查看更多，請聯絡客服。`
