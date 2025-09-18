@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { WebSocketMessage } from '../types';
 import { getUserState } from './userService';
-import { sendOrderStatusUpdate } from '../handlers/notificationHandler';
+import { sendOrderStatusUpdate, sendWebSocketNotification } from '../handlers/notificationHandler';
 
 let socket: Socket | null = null;
 const connectedUsers = new Map<number, string>(); // memberId -> userId
@@ -89,14 +89,24 @@ function retryConnection(userId: string, memberId: number, token: string, wsUrl:
 // 斷開用戶 WebSocket 連線
 export function disconnectUserWebSocket(memberId: number): void {
   if (socket && connectedUsers.has(memberId)) {
+    const userId = connectedUsers.get(memberId);
     const room = `member.delivery.medicine.${memberId}`;
+    
+    console.log(`🚪 準備離開房間: ${room}`);
+    console.log(`👤 離開用戶: ${userId} (Member ID: ${memberId})`);
+    
     socket.emit('leave_room', room);
+    console.log(`✅ 已發送離開房間請求: ${room}`);
+    
     socket.disconnect();
     socket = null;
     connectedUsers.delete(memberId);
     // 清理重試計數器
     connectionRetries.delete(memberId);
     console.log(`🔌 用戶 WebSocket 連線已斷開 (Member ID: ${memberId})`);
+    console.log(`🧹 已清理用戶連線記錄和重試計數器`);
+  } else {
+    console.log(`⚠️ 嘗試斷開不存在的連線 (Member ID: ${memberId})`);
   }
 }
 
@@ -158,11 +168,15 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     
     // 加入房間
     const room = `member.delivery.medicine.${memberId}`;
-    console.log(`🏠 加入房間: ${room}`);
+    console.log(`🏠 準備加入房間: ${room}`);
+    console.log(`👤 用戶資訊: ${userId} (Member ID: ${memberId})`);
+    
     socket!.emit('join_room', room);
+    console.log(`✅ 已發送加入房間請求: ${room}`);
     
     // 記錄連線
     connectedUsers.set(memberId, userId);
+    console.log(`📝 已記錄用戶連線: Member ID ${memberId} -> User ID ${userId}`);
   });
   
   socket.on('connect_error', (error) => {
@@ -187,14 +201,77 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
   
   // 監聽訂單狀態更新
   const broadcastChannel = `member.deliveryMedicine.${memberId}`;
+  console.log(`📡 開始監聽廣播頻道: ${broadcastChannel}`);
+  
   socket.on(broadcastChannel, (data: WebSocketMessage) => {
-    console.log(`📢 收到訂單狀態更新:`, data);
+    console.log(`📢 [房間: member.delivery.medicine.${memberId}] 收到 WebSocket 訊息:`);
+    console.log(`📦 廣播頻道: ${broadcastChannel}`);
+    console.log(`👤 目標用戶: ${userId} (Member ID: ${memberId})`);
+    console.log(`📄 訊息內容:`, JSON.stringify(data, null, 2));
+    console.log(`⏰ 接收時間: ${new Date().toISOString()}`);
+    
+    // 發送訂單狀態更新到 LINE
     sendOrderStatusUpdate(userId, data);
+    
+    console.log(`✅ 訊息已轉發到 LINE 用戶: ${userId}`);
+  });
+  
+  // 監聽其他可能的直接訊息事件
+  const possibleMessageEvents = [
+    'message',
+    'notification', 
+    'alert',
+    'update',
+    'delivery_update',
+    'pharmacy_message',
+    'system_message'
+  ];
+  
+  possibleMessageEvents.forEach(eventName => {
+    socket.on(eventName, (data) => {
+      console.log(`📨 [Member ID: ${memberId}] 收到直接訊息事件: ${eventName}`);
+      console.log(`👤 目標用戶: ${userId}`);
+      console.log(`📄 訊息內容:`, JSON.stringify(data, null, 2));
+      
+      // 發送到 LINE
+      sendWebSocketNotification(userId, eventName, data);
+      
+      console.log(`✅ 直接訊息已轉發到 LINE 用戶: ${userId}`);
+    });
   });
   
   // 添加其他事件監聽
   socket.on('error', (error) => {
     console.error('❌ WebSocket 錯誤:', error);
+  });
+  
+  // 監聽所有可能的 WebSocket 事件
+  socket.onAny((eventName, ...args) => {
+    // 過濾掉常見的連線事件，只記錄可能的業務訊息
+    const ignoredEvents = ['connect', 'disconnect', 'connect_error', 'reconnect', 'reconnect_error', 'reconnect_failed'];
+    
+    if (!ignoredEvents.includes(eventName)) {
+      console.log(`🎯 [Member ID: ${memberId}] 收到 WebSocket 事件: ${eventName}`);
+      console.log(`👤 目標用戶: ${userId}`);
+      console.log(`📦 事件參數:`, args);
+      console.log(`⏰ 時間: ${new Date().toISOString()}`);
+      
+      // 如果不是已知的廣播頻道，也嘗試處理這個訊息
+      if (eventName !== broadcastChannel) {
+        console.log(`📨 收到非標準廣播訊息，嘗試處理...`);
+        
+        // 嘗試解析訊息內容
+        try {
+          const messageData = args[0];
+          if (messageData && typeof messageData === 'object') {
+            // 發送通用 WebSocket 訊息到 LINE
+            sendWebSocketNotification(userId, eventName, messageData);
+          }
+        } catch (error) {
+          console.error(`❌ 處理非標準 WebSocket 訊息失敗:`, error);
+        }
+      }
+    }
   });
   
   socket.on('connect_timeout', () => {
@@ -206,8 +283,15 @@ function connectUserWebSocketInternal(userId: string, memberId: number, token: s
     console.log(`🔄 WebSocket 重新連線成功 (嘗試 ${attemptNumber} 次)`);
     // 重連成功後重新加入房間
     const room = `member.delivery.medicine.${memberId}`;
-    console.log(`🏠 重新加入房間: ${room}`);
+    console.log(`🏠 重連後重新加入房間: ${room}`);
+    console.log(`👤 重連用戶: ${userId} (Member ID: ${memberId})`);
+    
     socket!.emit('join_room', room);
+    console.log(`✅ 重連後已發送加入房間請求: ${room}`);
+    
+    // 重新監聽廣播頻道
+    const broadcastChannel = `member.deliveryMedicine.${memberId}`;
+    console.log(`📡 重連後重新監聽廣播頻道: ${broadcastChannel}`);
   });
   
   socket.on('reconnect_error', (error) => {

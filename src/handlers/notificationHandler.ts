@@ -85,6 +85,59 @@ export async function sendOrderStatusUpdate(userId: string, message: WebSocketMe
 
 
 
+// 發送通用 WebSocket 訊息通知
+export async function sendWebSocketNotification(userId: string, eventName: string, messageData: any): Promise<void> {
+  try {
+    console.log(`📧 準備發送通用 WebSocket 通知給用戶 ${userId}`);
+    console.log(`📡 事件名稱: ${eventName}`);
+    console.log(`📦 訊息內容:`, messageData);
+    
+    let notificationText = `📨 收到新訊息\n\n`;
+    notificationText += `📡 事件類型：${eventName}\n`;
+    notificationText += `⏰ 時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}\n\n`;
+    
+    // 嘗試解析並顯示訊息內容
+    if (messageData) {
+      if (typeof messageData === 'string') {
+        notificationText += `💬 訊息：${messageData}`;
+      } else if (typeof messageData === 'object') {
+        // 如果是物件，嘗試提取有用的資訊
+        if (messageData.message) {
+          notificationText += `💬 訊息：${messageData.message}\n`;
+        }
+        if (messageData.title) {
+          notificationText += `📌 標題：${messageData.title}\n`;
+        }
+        if (messageData.content) {
+          notificationText += `📄 內容：${messageData.content}\n`;
+        }
+        if (messageData.order_code) {
+          notificationText += `📋 訂單：${messageData.order_code}\n`;
+        }
+        
+        // 如果沒有找到特定欄位，顯示 JSON 字符串（截斷過長的內容）
+        if (!messageData.message && !messageData.title && !messageData.content) {
+          const jsonString = JSON.stringify(messageData, null, 2);
+          const truncatedJson = jsonString.length > 200 ? jsonString.substring(0, 200) + '...' : jsonString;
+          notificationText += `📦 資料：\n${truncatedJson}`;
+        }
+      }
+    }
+    
+    // 推送訊息給用戶
+    const client = getClient();
+    await client.pushMessage(userId, {
+      type: 'text',
+      text: notificationText
+    });
+    
+    console.log(`✅ 已發送通用 WebSocket 通知給用戶 ${userId}`);
+    
+  } catch (error) {
+    console.error(`❌ 發送通用 WebSocket 通知失敗:`, error);
+  }
+}
+
 // 發送製作完成通知
 export async function sendCompletionNotification(userId: string, orderCode: string, pickupInfo: string): Promise<void> {
   try {
