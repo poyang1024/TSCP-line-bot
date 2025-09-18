@@ -359,3 +359,96 @@ export async function deleteAccount(token: string): Promise<{ success: boolean; 
     return { success: false, message: '帳號刪除失敗，請稍後再試' };
   }
 }
+
+// ==================== 通知相關 API ====================
+
+export interface Notification {
+  id: number;
+  subject: string;
+  content: string;
+  created_at: number;
+  is_read: boolean;
+  sender: {
+    type: number;
+    id: number;
+    name: string;
+  } | null;
+  record: {
+    type: number;
+    id: number;
+    order_code: string | null;
+  } | null;
+}
+
+/**
+ * 查詢通知
+ */
+export async function getNotifications(
+  accessToken: string,
+  startDate: number,
+  endDate: number,
+  isRead?: boolean
+): Promise<Notification[]> {
+  try {
+    console.log('📬 查詢通知列表...');
+    console.log('📅 時間範圍:', new Date(startDate * 1000).toISOString(), '到', new Date(endDate * 1000).toISOString());
+    
+    const params: any = {
+      start_date: startDate,
+      end_date: endDate
+    };
+    
+    if (isRead !== undefined) {
+      params.is_read = isRead;
+    }
+    
+    const response = await api.get('/notification', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      params
+    });
+    
+    if (response.data.success) {
+      console.log('✅ 通知查詢成功，共', response.data.data?.length || 0, '筆');
+      return response.data.data || [];
+    } else {
+      console.error('❌ 通知查詢失敗:', response.data.message);
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ 查詢通知時發生錯誤:', error);
+    return [];
+  }
+}
+
+/**
+ * 標記通知為已讀
+ */
+export async function markNotificationAsRead(
+  accessToken: string,
+  notificationId: number
+): Promise<boolean> {
+  try {
+    console.log('✅ 標記通知為已讀:', notificationId);
+    
+    const response = await api.patch(`/notification/${notificationId}`, {
+      is_read: true
+    }, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    
+    if (response.data.success) {
+      console.log('✅ 通知已標記為已讀');
+      return true;
+    } else {
+      console.error('❌ 標記通知已讀失敗:', response.data.message);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ 標記通知已讀時發生錯誤:', error);
+    return false;
+  }
+}
