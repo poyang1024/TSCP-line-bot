@@ -440,7 +440,7 @@ async function performLogin(
       }
       
       // 建立 WebSocket 連線
-      connectUserWebSocket(userId, member.user_id, member.access_token);
+      await connectUserWebSocket(userId, member.user_id, member.access_token);
       
       // 發送簡化的登入成功訊息
       const successMessage = {

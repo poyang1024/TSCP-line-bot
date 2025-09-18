@@ -5,6 +5,7 @@ import { updateUserState, getUserState } from '../services/userService';
 import { createUserToken } from '../services/jwtService';
 import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { updateUserRichMenu } from '../services/menuManager';
+import { setUserLoginState, removeUserLoginState } from '../services/redisService';
 
 // 網頁登入處理
 export async function handleWebLogin(req: Request, res: Response, client: Client): Promise<void> {
@@ -26,7 +27,21 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       // 建立 JWT Token
       const token = createUserToken(lineUserId, member.user_id, member.access_token, member.name);
       
-      // 更新用戶狀態
+      // 儲存登入狀態到 Redis
+      const loginSuccess = await setUserLoginState(lineUserId, {
+        memberId: member.user_id,
+        accessToken: member.access_token,
+        memberName: member.name,
+        loginTime: Date.now()
+      });
+      
+      if (loginSuccess) {
+        console.log(`✅ 登入狀態已儲存到 Redis - ${lineUserId}`);
+      } else {
+        console.warn(`⚠️ 無法儲存登入狀態到 Redis - ${lineUserId}`);
+      }
+      
+      // 更新用戶狀態（保留原有邏輯作為備份）
       updateUserState(lineUserId, { 
         currentStep: undefined, 
         tempData: undefined,
@@ -44,7 +59,7 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       }
       
       // 建立 WebSocket 連線
-      connectUserWebSocket(lineUserId, member.user_id, member.access_token);
+      await connectUserWebSocket(lineUserId, member.user_id, member.access_token);
       
       // 發送登入成功通知到 LINE
       try {
@@ -70,6 +85,7 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       
     } else {
       // 登入失敗
+      await removeUserLoginState(lineUserId);
       updateUserState(lineUserId, { currentStep: undefined, tempData: undefined });
       
       // 確保選單為訪客模式
