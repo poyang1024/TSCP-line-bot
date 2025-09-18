@@ -39,7 +39,7 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
   const action = data.get('action') || 'unknown';
   
   // 智能重複請求檢測
-  const { isDuplicate, shouldShowMessage } = await checkDuplicateRequest(userId, action);
+  const { isDuplicate, shouldShowMessage, shouldExecute } = await checkDuplicateRequest(userId, action);
   
   if (isDuplicate) {
     console.log(`🔄 檢測到用戶 ${userId} 重複請求 ${action}${shouldShowMessage ? '，發送提醒' : '，靜默處理'}`);
@@ -49,9 +49,10 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
       if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
         // 重新投遞事件使用 pushMessage
         try {
+          const message = generateDuplicateRequestMessage(action);
           await client.pushMessage(userId, {
             type: 'text',
-            text: generateDuplicateRequestMessage(action)
+            text: message
           });
         } catch (pushError) {
           console.error('❌ 推送重複請求提醒失敗:', pushError);
@@ -59,17 +60,34 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
       } else {
         // 正常事件使用 replyMessage
         try {
+          const message = generateDuplicateRequestMessage(action);
           await client.replyMessage(event.replyToken, {
             type: 'text',
-            text: generateDuplicateRequestMessage(action)
+            text: message
           });
         } catch (replyError) {
-          console.error('❌ 回覆重複請求提醒失敗:', replyError);
+          console.error('❌ 回覆重複請求提醒失敗，改用 pushMessage:', replyError);
+          try {
+            const message = generateDuplicateRequestMessage(action);
+            await client.pushMessage(userId, {
+              type: 'text',
+              text: message
+            });
+          } catch (pushError) {
+            console.error('❌ 推送重複請求提醒也失敗:', pushError);
+          }
         }
       }
     }
     
-    return { success: true, action: 'duplicate_filtered' };
+    // 重要：只有在 shouldExecute 為 false 時才完全阻止執行
+    if (!shouldExecute) {
+      console.log(`🚫 用戶 ${userId} 重複請求過多 ${action}，暫時阻止執行`);
+      return { success: true, action, error: 'Too many duplicate requests' };
+    }
+    
+    // 如果 shouldExecute 為 true，繼續執行但不再顯示訊息
+    console.log(`✅ 用戶 ${userId} 重複請求 ${action}，但仍繼續執行`);
   }
   
   try {

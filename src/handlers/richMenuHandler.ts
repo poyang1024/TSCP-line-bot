@@ -39,7 +39,14 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
         console.log(`🔇 用戶 ${userId} 重複請求 ${action}，靜默處理`);
       }
       
-      return;
+      // 重要：只有在 shouldExecute 為 false 時才完全阻止執行
+      if (!duplicateCheck.shouldExecute) {
+        console.log(`🚫 用戶 ${userId} 重複請求過多 ${action}，暫時阻止執行`);
+        return;
+      }
+      
+      // 如果 shouldExecute 為 true，繼續執行但不再顯示訊息
+      console.log(`✅ 用戶 ${userId} 重複請求 ${action}，但仍繼續執行`);
     }
   }
   

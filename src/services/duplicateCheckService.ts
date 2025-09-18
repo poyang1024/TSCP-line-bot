@@ -14,18 +14,21 @@ import {
 const DUPLICATE_CHECK_CONFIG = {
   // 不同操作的最小間隔時間（毫秒）
   intervals: {
-    'view_orders': 2000,      // 查看訂單：2秒
-    'member_center': 1000,    // 會員中心：1秒
-    'create_order': 3000,     // 創建訂單：3秒
-    'login': 5000,            // 登入：5秒
-    'logout': 2000,           // 登出：2秒
-    'upload': 10000,          // 上傳：10秒
-    'default': 1500           // 預設：1.5秒
+    'view_orders': 1000,      // 查看訂單：1秒
+    'member_center': 800,     // 會員中心：0.8秒
+    'create_order': 2000,     // 創建訂單：2秒
+    'login_required': 1000,   // 登入提示：1秒
+    'login': 3000,            // 登入：3秒
+    'logout': 1500,           // 登出：1.5秒
+    'upload': 5000,           // 上傳：5秒
+    'default': 1000           // 預設：1秒
   },
-  // 靜默模式：不顯示重複請求訊息的次數
-  silentThreshold: 2,
+  // 顯示警告訊息的閾值（在此之前顯示提醒）
+  warningThreshold: 3,
+  // 完全靜默的閾值（超過此次數後完全靜默）
+  silentThreshold: 10,
   // 重置計數器的時間（毫秒）
-  resetInterval: 30000,       // 30秒
+  resetInterval: 60000,       // 60秒後重置
 };
 
 /**
@@ -33,13 +36,13 @@ const DUPLICATE_CHECK_CONFIG = {
  * @param userId 用戶ID
  * @param action 操作類型
  * @param silent 是否靜默模式（不返回訊息）
- * @returns { isDuplicate: boolean, shouldShowMessage: boolean }
+ * @returns { isDuplicate: boolean, shouldShowMessage: boolean, shouldExecute: boolean }
  */
 export async function checkDuplicateRequest(
   userId: string, 
   action: string, 
   silent: boolean = false
-): Promise<{ isDuplicate: boolean, shouldShowMessage: boolean }> {
+): Promise<{ isDuplicate: boolean, shouldShowMessage: boolean, shouldExecute: boolean }> {
   try {
     const now = Date.now();
     const requestKey = `request:${userId}:${action}`;
@@ -58,10 +61,6 @@ export async function checkDuplicateRequest(
       if (timeDiff < minInterval) {
         console.log(`⚠️ 檢測到用戶 ${userId} 重複請求 ${action}，間隔：${timeDiff}ms (最小：${minInterval}ms)`);
         
-        if (silent) {
-          return { isDuplicate: true, shouldShowMessage: false };
-        }
-        
         // 檢查重複請求次數
         const duplicateCount = await getRequestCount(countKey) || 0;
         const newCount = duplicateCount + 1;
@@ -69,14 +68,28 @@ export async function checkDuplicateRequest(
         // 更新計數器
         await setRequestCount(countKey, newCount);
         
-        // 如果重複次數超過閾值，則靜默處理
-        const shouldShowMessage = newCount <= DUPLICATE_CHECK_CONFIG.silentThreshold;
+        // 判斷是否應該顯示訊息和是否應該執行
+        let shouldShowMessage = false;
+        let shouldExecute = true;
         
-        if (!shouldShowMessage) {
-          console.log(`🔇 用戶 ${userId} 重複請求次數過多，啟用靜默模式`);
+        if (newCount <= DUPLICATE_CHECK_CONFIG.warningThreshold) {
+          // 在警告閾值內，顯示友善提醒但仍執行
+          shouldShowMessage = !silent;
+          shouldExecute = true;
+          console.log(`💬 用戶 ${userId} 重複請求 ${action}，顯示提醒並執行 (${newCount}/${DUPLICATE_CHECK_CONFIG.warningThreshold})`);
+        } else if (newCount <= DUPLICATE_CHECK_CONFIG.silentThreshold) {
+          // 在靜默閾值內，不顯示訊息但仍執行
+          shouldShowMessage = false;
+          shouldExecute = true;
+          console.log(`🔇 用戶 ${userId} 重複請求 ${action}，靜默執行 (${newCount}/${DUPLICATE_CHECK_CONFIG.silentThreshold})`);
+        } else {
+          // 超過靜默閾值，開始限制執行
+          shouldShowMessage = false;
+          shouldExecute = false;
+          console.log(`� 用戶 ${userId} 重複請求過多 ${action}，暫時阻止執行 (${newCount}/${DUPLICATE_CHECK_CONFIG.silentThreshold})`);
         }
         
-        return { isDuplicate: true, shouldShowMessage };
+        return { isDuplicate: true, shouldShowMessage, shouldExecute };
       }
     }
     
@@ -86,14 +99,15 @@ export async function checkDuplicateRequest(
     // 重置計數器（如果時間間隔足夠長）
     if (lastRequestTime && (now - lastRequestTime) > DUPLICATE_CHECK_CONFIG.resetInterval) {
       await setRequestCount(countKey, 0);
+      console.log(`🔄 重置用戶 ${userId} 的 ${action} 請求計數器`);
     }
     
-    return { isDuplicate: false, shouldShowMessage: false };
+    return { isDuplicate: false, shouldShowMessage: false, shouldExecute: true };
     
   } catch (error) {
     console.error('❌ 檢查重複請求時發生錯誤:', error);
     // 發生錯誤時，允許請求通過
-    return { isDuplicate: false, shouldShowMessage: false };
+    return { isDuplicate: false, shouldShowMessage: false, shouldExecute: true };
   }
 }
 
