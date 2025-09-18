@@ -482,6 +482,34 @@ export async function getUserLastPollTime(userId: string): Promise<number | null
   return result;
 }
 
+// ==================== 通知檢查時間管理 ====================
+
+/**
+ * 設置用戶最後通知檢查時間
+ */
+export async function setUserLastNotificationCheck(userId: string, timestamp: number): Promise<boolean> {
+  const result = await safeRedisOperation(async () => {
+    const key = `notification_check:${userId}`;
+    await redisClient!.setEx(key, 86400, timestamp.toString()); // 24小時過期
+    return true;
+  });
+  
+  return result !== null;
+}
+
+/**
+ * 獲取用戶最後通知檢查時間
+ */
+export async function getUserLastNotificationCheck(userId: string): Promise<number | null> {
+  const result = await safeRedisOperation(async () => {
+    const key = `notification_check:${userId}`;
+    const timestamp = await redisClient!.get(key);
+    return timestamp ? parseInt(timestamp as string, 10) : null;
+  });
+  
+  return result;
+}
+
 /**
  * 關閉 Redis 連線
  */
