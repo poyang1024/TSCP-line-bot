@@ -7,6 +7,7 @@ import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUser
 import { getOrders } from '../services/apiService'
 import { createOrderDetailCard, createOrderCarousel } from '../templates/messageTemplates'
 import { removeUserLoginState, getUserLoginState, removeWebSocketConnection } from '../services/redisService'
+import { checkDuplicateRequest, generateDuplicateRequestMessage } from '../services/duplicateCheckService'
 
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
@@ -17,20 +18,29 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
   
-  // 檢查是否為重新投遞事件
-  if ('deliveryContext' in event && event.deliveryContext?.isRedelivery) {
-    console.log('🔄 Rich Menu 檢測到重新投遞事件，使用 pushMessage 回應');
+  // 使用智能重複請求檢測
+  if (action) {
+    const duplicateCheck = await checkDuplicateRequest(userId, action, false);
     
-    try {
-      await client.pushMessage(userId, {
-        type: 'text',
-        text: '⚠️ 檢測到重複操作，請避免快速點擊選單。\n\n如需協助，請稍候再試。'
-      });
-    } catch (pushError) {
-      console.error('❌ 推送重新投遞提醒失敗:', pushError);
+    if (duplicateCheck.isDuplicate) {
+      if (duplicateCheck.shouldShowMessage) {
+        const message = generateDuplicateRequestMessage(action);
+        console.log(`⚠️ 檢測到用戶 ${userId} 重複請求 ${action}，發送提醒`);
+        
+        try {
+          await client.pushMessage(userId, {
+            type: 'text',
+            text: message
+          });
+        } catch (pushError) {
+          console.error('❌ 推送重複請求提醒失敗:', pushError);
+        }
+      } else {
+        console.log(`🔇 用戶 ${userId} 重複請求 ${action}，靜默處理`);
+      }
+      
+      return;
     }
-    
-    return;
   }
   
   // 對於會員功能，檢查並確保 WebSocket 連線
@@ -370,12 +380,13 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     }
   }
   
-  // 如果沒有有效的 JWT token，檢查記憶體狀態
+  // 如果沒有有效的 JWT token，檢查 Redis 狀態
   if (!userSession) {
-    const userState = getUserState(userId)
+    // 先檢查 Redis 中的登入狀態
+    const redisLoginState = await getUserLoginState(userId)
     
-    if (!userState.accessToken || !userState.memberId) {
-      // 用戶已登出，但富選單還是會員模式，需要切換回訪客模式
+    if (!redisLoginState) {
+      // Redis 中沒有登入狀態，用戶已登出
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
       await updateUserRichMenu(client, userId, false)
       
@@ -386,12 +397,19 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       return
     }
     
+    // Redis 中有登入狀態，同步到記憶體
+    console.log(`🔄 從 Redis 恢復用戶 ${userId} 的登入狀態`)
+    updateUserState(userId, {
+      accessToken: redisLoginState.accessToken,
+      memberId: redisLoginState.memberId
+    })
+    
     // 創建臨時的 session 物件
     userSession = {
       lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      memberId: redisLoginState.memberId,
+      memberName: redisLoginState.memberName || '會員',
+      accessToken: redisLoginState.accessToken,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }
@@ -470,12 +488,13 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     }
   }
   
-  // 如果沒有有效的 JWT token，檢查記憶體狀態
+  // 如果沒有有效的 JWT token，檢查 Redis 狀態
   if (!userSession) {
-    const userState = getUserState(userId)
+    // 先檢查 Redis 中的登入狀態
+    const redisLoginState = await getUserLoginState(userId)
     
-    if (!userState.accessToken || !userState.memberId) {
-      // 用戶已登出，但富選單還是會員模式，需要切換回訪客模式
+    if (!redisLoginState) {
+      // Redis 中沒有登入狀態，用戶已登出
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
       await updateUserRichMenu(client, userId, false)
       
@@ -497,12 +516,19 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
       return
     }
     
+    // Redis 中有登入狀態，同步到記憶體
+    console.log(`🔄 從 Redis 恢復用戶 ${userId} 的登入狀態`)
+    updateUserState(userId, {
+      accessToken: redisLoginState.accessToken,
+      memberId: redisLoginState.memberId
+    })
+    
     // 創建臨時的 session 物件
     userSession = {
       lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      memberId: redisLoginState.memberId,
+      memberName: redisLoginState.memberName || '會員',
+      accessToken: redisLoginState.accessToken,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }
