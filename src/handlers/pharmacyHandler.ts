@@ -101,8 +101,9 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
 
 // 處理藥局分頁導航
 export async function handlePharmacyPageNavigation(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
+  const userId = event.source.userId;
+  
   try {
-    const userId = event.source.userId;
     
     // 立即發送確認訊息，讓用戶知道系統已收到請求
     await client.replyMessage(event.replyToken, {
@@ -168,9 +169,11 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     
   } catch (error) {
     console.error('處理藥局分頁錯誤:', error);
-    await client.pushMessage(userId!, {
-      type: 'text',
-      text: '❌ 查看藥局時發生錯誤，請稍後再試。'
-    });
+    if (userId) {
+      await client.pushMessage(userId, {
+        type: 'text',
+        text: '❌ 查看藥局時發生錯誤，請稍後再試。'
+      });
+    }
   }
 }
