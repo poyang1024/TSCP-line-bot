@@ -2,6 +2,7 @@ import { MessageEvent, Client, PostbackEvent } from '@line/bot-sdk';
 import { searchPharmacies } from '../services/apiService';
 import { createPharmacyCarousel, createPharmacyPaginationButtons } from '../templates/messageTemplates';
 import { getUserState, isUserLoggedIn } from '../services/userService';
+import { getUserLoginState } from '../services/redisService';
 
 export async function handlePharmacySearch(event: MessageEvent, client: Client): Promise<void> {
   try {
@@ -14,10 +15,10 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       return;
     }
 
-    const userState = getUserState(userId);
+    // 首先檢查 Redis 中的登入狀態
+    const loginState = await getUserLoginState(userId);
     
-    // 檢查用戶是否已登入 - 使用實際的登入狀態檢查
-    if (!userState.accessToken || !userState.memberId) {
+    if (!loginState) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 請先登入才能搜尋藥局'
@@ -25,7 +26,7 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       return;
     }
 
-    const token = userState.accessToken;
+    const token = loginState.accessToken;
     
     if (!token) {
       await client.replyMessage(event.replyToken, {
@@ -35,6 +36,9 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
       return;
     }
 
+    // 備用：檢查記憶體中的用戶狀態來取得會員地址
+    const userState = getUserState(userId);
+    
     // 取得會員地址作為搜尋關鍵字
     const memberAddress = userState.tempData?.memberPersonalInfo?.address;
     let searchKeyword: string | undefined;
@@ -107,10 +111,10 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
       return;
     }
 
-    const userState = getUserState(userId);
+    // 檢查 Redis 中的登入狀態
+    const loginState = await getUserLoginState(userId);
     
-    // 檢查用戶是否已登入
-    if (!userState.accessToken || !userState.memberId) {
+    if (!loginState) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 請先登入才能查看藥局'
@@ -118,10 +122,11 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
       return;
     }
 
-    const token = userState.accessToken;
+    const token = loginState.accessToken;
     const page = parseInt(data.get('page') || '1');
     
     // 重新搜尋藥局資料
+    const userState = getUserState(userId); // 備用：取得會員地址
     const memberAddress = userState.tempData?.memberPersonalInfo?.address;
     let searchKeyword: string | undefined;
     

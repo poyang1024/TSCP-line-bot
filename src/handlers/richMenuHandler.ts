@@ -6,6 +6,7 @@ import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
 import { createOrderDetailCard, createOrderCarousel } from '../templates/messageTemplates'
+import { removeUserLoginState, getUserLoginState, removeWebSocketConnection } from '../services/redisService'
 
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
@@ -36,7 +37,7 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   const memberActions = ['member_center', 'order_history', 'pharmacist_consultation']
   if (memberActions.includes(action || '')) {
     console.log(`🔍 檢查用戶 ${userId} 的 WebSocket 連線狀態...`)
-    ensureUserWebSocketConnection(userId)
+    await ensureUserWebSocketConnection(userId)
   }
   
   switch (action) {
@@ -170,28 +171,28 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     }
   }
   
-  // 如果沒有有效的 JWT token，檢查記憶體狀態
+  // 檢查 Redis 中的登入狀態
+  const loginState = await getUserLoginState(userId);
+  
+  if (!loginState) {
+    // 沒有有效的登入狀態，切換回訪客模式
+    console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
+    await updateUserRichMenu(client, userId, false)
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
+    })
+    return
+  }
+  
+  // 如果沒有有效的 JWT token，但有 Redis 登入狀態，創建臨時 session
   if (!userSession) {
-    const userState = getUserState(userId)
-    
-    if (!userState.accessToken || !userState.memberId) {
-      // 用戶已登出，但富選單還是會員模式，需要切換回訪客模式
-      console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
-      await updateUserRichMenu(client, userId, false)
-      
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
-      })
-      return
-    }
-    
-    // 創建臨時的 session 物件
     userSession = {
       lineId: userId,
-      memberId: userState.memberId,
-      memberName: userState.memberName || '會員',
-      accessToken: userState.accessToken,
+      memberId: loginState.memberId,
+      memberName: loginState.memberName || '會員',
+      accessToken: loginState.accessToken,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600
     }
@@ -291,19 +292,68 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
 
 // 處理登出
 async function handleLogout(event: PostbackEvent, client: Client, userId: string): Promise<void> {
-  // 清除暫存資料
-  updateUserTempData(userId, undefined)
-  
-  // 斷開 WebSocket 連線（如果存在）
-  // 注意：在 JWT 模式下，我們無法直接取得 memberId，需要其他方式處理
-  
-  // 切換回訪客選單
-  await updateUserRichMenu(client, userId, false)
-  
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '👋 您已成功登出\n\n選單已切換為訪客模式，感謝您的使用！\n\n如需使用會員功能，請重新登入。'
-  })
+  try {
+    // 從 Redis 取得登入狀態以獲取 memberId
+    const loginState = await getUserLoginState(userId);
+    
+    // 清除 Redis 中的登入狀態
+    const loginStateRemoved = await removeUserLoginState(userId);
+    if (loginStateRemoved) {
+      console.log(`✅ 已從 Redis 清除登入狀態 - ${userId}`);
+    } else {
+      console.warn(`⚠️ 無法從 Redis 清除登入狀態 - ${userId}`);
+    }
+    
+    // 清除 Redis 中的 WebSocket 連線狀態
+    const wsRemoved = await removeWebSocketConnection(userId);
+    if (wsRemoved) {
+      console.log(`✅ 已從 Redis 清除 WebSocket 連線狀態 - ${userId}`);
+    }
+    
+    // 清除暫存資料
+    updateUserTempData(userId, undefined);
+    
+    // 清除記憶體中的用戶狀態
+    updateUserState(userId, { 
+      currentStep: undefined, 
+      tempData: undefined,
+      memberId: undefined,
+      accessToken: undefined,
+      memberName: undefined,
+    });
+    
+    // 斷開 WebSocket 連線
+    if (loginState) {
+      await disconnectUserWebSocket(loginState.memberId);
+    }
+    
+    // 切換回訪客選單
+    await updateUserRichMenu(client, userId, false);
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '👋 您已成功登出\n\n選單已切換為訪客模式，感謝您的使用！\n\n如需使用會員功能，請重新登入。'
+    });
+  } catch (error) {
+    console.error('❌ 登出處理失敗:', error);
+    
+    // 即使發生錯誤也要確保用戶狀態被清除
+    await removeUserLoginState(userId);
+    await removeWebSocketConnection(userId);
+    updateUserTempData(userId, undefined);
+    updateUserState(userId, { 
+      currentStep: undefined, 
+      tempData: undefined,
+      memberId: undefined,
+      accessToken: undefined,
+      memberName: undefined,
+    });
+    
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: '👋 您已登出，選單已切換為訪客模式。'
+    });
+  }
 }
 
 // 處理查看訂單
