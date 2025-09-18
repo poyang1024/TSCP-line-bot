@@ -454,6 +454,84 @@ export async function keyExists(key: string): Promise<boolean> {
   return result !== null && result;
 }
 
+// ==================== 輪詢時間管理 ====================
+
+/**
+ * 設置用戶最後輪詢時間
+ */
+export async function setUserLastPollTime(userId: string, timestamp: number): Promise<boolean> {
+  const result = await safeRedisOperation(async () => {
+    const key = `poll_time:${userId}`;
+    await redisClient!.setEx(key, 3600, timestamp.toString()); // 1小時過期
+    return true;
+  });
+  
+  return result !== null;
+}
+
+/**
+ * 獲取用戶最後輪詢時間
+ */
+export async function getUserLastPollTime(userId: string): Promise<number | null> {
+  const result = await safeRedisOperation(async () => {
+    const key = `poll_time:${userId}`;
+    const timestamp = await redisClient!.get(key);
+    return timestamp ? parseInt(timestamp as string, 10) : null;
+  });
+  
+  return result;
+}
+
+// ==================== 重複請求檢查 ====================
+
+/**
+ * 設置請求時間戳
+ */
+export async function setRequestTimestamp(key: string, timestamp: number): Promise<boolean> {
+  const result = await safeRedisOperation(async () => {
+    await redisClient!.setEx(key, 300, timestamp.toString()); // 5分鐘過期
+    return true;
+  });
+  
+  return result !== null;
+}
+
+/**
+ * 獲取請求時間戳
+ */
+export async function getRequestTimestamp(key: string): Promise<number | null> {
+  const result = await safeRedisOperation(async () => {
+    const timestamp = await redisClient!.get(key);
+    return timestamp ? parseInt(timestamp as string, 10) : null;
+  });
+  
+  return result;
+}
+
+/**
+ * 設置請求計數
+ */
+export async function setRequestCount(key: string, count: number): Promise<boolean> {
+  const result = await safeRedisOperation(async () => {
+    await redisClient!.setEx(key, 300, count.toString()); // 5分鐘過期
+    return true;
+  });
+  
+  return result !== null;
+}
+
+/**
+ * 獲取請求計數
+ */
+export async function getRequestCount(key: string): Promise<number | null> {
+  const result = await safeRedisOperation(async () => {
+    const count = await redisClient!.get(key);
+    return count ? parseInt(count as string, 10) : null;
+  });
+  
+  return result;
+}
+
 /**
  * 關閉 Redis 連線
  */
