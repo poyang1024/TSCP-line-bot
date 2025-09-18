@@ -413,7 +413,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     }
 
     // 顯示最近的10筆訂單 (確保不超過 LINE 的訊息限制)
-    const recentOrders = orders.slice(orders.length - 10, orders.length)
+    const recentOrders = orders.slice(0, 10)
     
     try {
       const carouselMessage = createOrderCarousel(recentOrders)
