@@ -525,8 +525,8 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
       }
       
-      // 這是 handleCreateOrder 中的錯誤，應該使用 replyMessage 因為有 replyToken
-      await client.replyMessage(event.replyToken, message)
+      // 使用 pushMessage 因為 replyToken 已被使用
+      await client.pushMessage(userId, message)
       return
     }
     
@@ -565,8 +565,8 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
   }
   
-  // 這是 handleCreateOrder 的最終回覆，應該使用 replyMessage
-  await client.replyMessage(event.replyToken, message)
+  // 使用 pushMessage 因為 replyToken 已被使用
+  await client.pushMessage(userId, message)
 }
 
 // 處理本地密碼修改 (開發環境)
