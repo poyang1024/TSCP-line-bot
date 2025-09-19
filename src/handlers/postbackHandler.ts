@@ -533,10 +533,10 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
         detailText += `🏥 科別：${order.department}\n`;
       }
       if (order.phone) {
-        detailText += `📞 聯絡電話：${order.phone}\n`;
+        detailText += `📞 顧客聯絡電話：${order.phone}\n`;
       }
       if (order.address) {
-        detailText += `📍 地址：${order.address}\n`;
+        detailText += `📍 顧客地址：${order.address}\n`;
       }
       if (order.remark) {
         detailText += `📝 備註：${order.remark}\n`;
