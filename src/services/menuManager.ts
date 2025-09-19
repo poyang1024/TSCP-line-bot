@@ -146,8 +146,14 @@ export async function createLoadingRichMenu(client: Client): Promise<string> {
 export async function setLoadingState(client: Client, userId: string): Promise<void> {
   try {
     if (RICH_MENU_IDS.LOADING) {
-      await client.unlinkRichMenuFromUser(userId)
-      await client.linkRichMenuToUser(userId, RICH_MENU_IDS.LOADING)
+      // 嘗試直接切換，如果失敗則先 unlink 再 link
+      try {
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.LOADING)
+      } catch (linkError) {
+        // 如果直接 link 失敗（可能已有選單），先 unlink 再 link
+        await client.unlinkRichMenuFromUser(userId)
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.LOADING)
+      }
       console.log(`⏳ 已切換到 Loading 狀態: ${userId}`)
 
       // 增加短暫延遲，確保 Loading 狀態有時間顯示給用戶
@@ -181,21 +187,24 @@ export async function updateUserRichMenu(client: Client, userId: string, isLogge
     console.log(`🎨 Updating rich menu for user ${userId}, isLoggedIn: ${isLoggedIn}`)
     console.log(`🎨 Available menu IDs - GUEST: ${RICH_MENU_IDS.GUEST}, MEMBER: ${RICH_MENU_IDS.MEMBER}`)
     
-    // 先解除目前的選單綁定
-    try {
-      await client.unlinkRichMenuFromUser(userId)
-    } catch (error) {
-      // 如果沒有綁定選單，忽略錯誤
-      console.log('No existing rich menu to unlink')
-    }
-
+    // 嘗試直接切換選單，如果失敗則先 unlink 再 link
     if (isLoggedIn && RICH_MENU_IDS.MEMBER) {
       // 已登入：顯示會員選單
-      await client.linkRichMenuToUser(userId, RICH_MENU_IDS.MEMBER)
+      try {
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.MEMBER)
+      } catch (linkError) {
+        await client.unlinkRichMenuFromUser(userId)
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.MEMBER)
+      }
       console.log(`✅ Switched to member menu for user: ${userId}`)
     } else if (RICH_MENU_IDS.GUEST) {
       // 未登入：顯示訪客選單
-      await client.linkRichMenuToUser(userId, RICH_MENU_IDS.GUEST)
+      try {
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.GUEST)
+      } catch (linkError) {
+        await client.unlinkRichMenuFromUser(userId)
+        await client.linkRichMenuToUser(userId, RICH_MENU_IDS.GUEST)
+      }
       console.log(`✅ Switched to guest menu for user: ${userId}`)
       
       // 如果應該是會員但卻切換到訪客選單，記錄警告
