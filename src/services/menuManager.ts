@@ -3,13 +3,15 @@ import { Client, RichMenu } from '@line/bot-sdk'
 // 選單 ID 常數 (需在 .env 中設定)
 export const RICH_MENU_IDS = {
   GUEST: process.env.GUEST_RICH_MENU_ID!,
-  MEMBER: process.env.MEMBER_RICH_MENU_ID!
+  MEMBER: process.env.MEMBER_RICH_MENU_ID!,
+  LOADING: process.env.LOADING_RICH_MENU_ID!, // 新增 loading 狀態選單
 }
 
 // 除錯：輸出目前的 Rich Menu ID
 console.log('🎨 Rich Menu ID 設定:');
 console.log(`GUEST: ${RICH_MENU_IDS.GUEST}`);
 console.log(`MEMBER: ${RICH_MENU_IDS.MEMBER}`);
+console.log(`LOADING: ${RICH_MENU_IDS.LOADING}`);
 
 // 建立未登入用戶選單
 export async function createGuestRichMenu(client: Client): Promise<string> {
@@ -113,6 +115,51 @@ export async function createMemberRichMenu(client: Client): Promise<string> {
   return result
 }
 
+// 建立 Loading 狀態選單
+export async function createLoadingRichMenu(client: Client): Promise<string> {
+  const richMenu: RichMenu = {
+    size: {
+      width: 2500,
+      height: 1686
+    },
+    selected: true,
+    name: 'Loading 選單',
+    chatBarText: '處理中...',
+    areas: [
+      // 整個區域都不可點擊，顯示處理中狀態
+      {
+        bounds: { x: 0, y: 0, width: 2500, height: 1686 },
+        action: {
+          type: 'postback',
+          data: 'action=processing&message=⏳ 系統正在處理中，請稍候...'
+        }
+      }
+    ]
+  }
+
+  const result = await client.createRichMenu(richMenu)
+  console.log('Created loading rich menu:', result)
+  return result
+}
+
+// 暫時切換到 Loading 狀態
+export async function setLoadingState(client: Client, userId: string): Promise<void> {
+  try {
+    if (RICH_MENU_IDS.LOADING) {
+      await client.unlinkRichMenuFromUser(userId)
+      await client.linkRichMenuToUser(userId, RICH_MENU_IDS.LOADING)
+      console.log(`⏳ 已切換到 Loading 狀態: ${userId}`)
+    }
+  } catch (error) {
+    console.error('❌ 切換到 Loading 狀態失敗:', error)
+  }
+}
+
+// 從 Loading 狀態恢復到正常選單
+export async function restoreMenuFromLoading(client: Client, userId: string, isLoggedIn: boolean): Promise<void> {
+  await updateUserRichMenu(client, userId, isLoggedIn)
+}
+
 // 動態切換選單
 export async function updateUserRichMenu(client: Client, userId: string, isLoggedIn: boolean): Promise<void> {
   try {
@@ -162,6 +209,11 @@ export async function initializeRichMenus(client: Client): Promise<void> {
     if (!RICH_MENU_IDS.MEMBER) {
       const memberMenuId = await createMemberRichMenu(client)
       console.log('⚠️  Please set MEMBER_RICH_MENU_ID in .env:', memberMenuId)
+    }
+
+    if (!RICH_MENU_IDS.LOADING) {
+      const loadingMenuId = await createLoadingRichMenu(client)
+      console.log('⚠️  Please set LOADING_RICH_MENU_ID in .env:', loadingMenuId)
     }
 
     console.log('✅ Rich menus initialized')

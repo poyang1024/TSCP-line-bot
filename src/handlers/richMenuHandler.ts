@@ -1,7 +1,7 @@
 import { PostbackEvent, Client, FlexMessage } from '@line/bot-sdk'
 import { verifyUserToken, refreshUserToken } from '../services/jwtService'
 import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
-import { updateUserRichMenu } from '../services/menuManager'
+import { updateUserRichMenu, setLoadingState, restoreMenuFromLoading } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
@@ -145,11 +145,8 @@ async function handleTutorial(event: PostbackEvent, client: Client): Promise<voi
 
 // 處理會員中心
 async function handleMemberCenter(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '👤 正在載入會員中心，請稍候...'
-  })
+  // 立即切換到 Loading 狀態的 Rich Menu (視覺回饋)
+  await setLoadingState(client, userId)
   
   let userSession = null
   
@@ -169,7 +166,9 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
     await updateUserRichMenu(client, userId, false)
     
-    await client.pushMessage(userId, {
+    // 恢復正常選單並回覆錯誤
+    await restoreMenuFromLoading(client, userId, false)
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
     })
@@ -277,7 +276,16 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     }
   }
 
-  await client.pushMessage(userId, memberMenu)
+  // 恢復正常選單並回覆會員中心資訊
+  await restoreMenuFromLoading(client, userId, true)
+
+  await client.replyMessage(event.replyToken, [
+    {
+      type: 'text',
+      text: `👤 會員中心載入完成`
+    },
+    memberMenu
+  ])
 }
 
 // 處理登出
@@ -349,12 +357,9 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
 // 處理查看訂單
 async function handleViewOrders(event: PostbackEvent, client: Client, userId: string, token?: string | null): Promise<void> {
   console.log(`📋 處理查看訂單請求: userId=${userId}`)
-  
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '📋 正在查詢您的訂單資料，請稍候...'
-  })
+
+  // 1. 立即切換到 Loading 狀態的 Rich Menu (視覺回饋)
+  await setLoadingState(client, userId)
   
   let userSession = null
   
@@ -375,8 +380,9 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
       // Redis 中沒有登入狀態，用戶已登出
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
       await updateUserRichMenu(client, userId, false)
-      
-      await client.pushMessage(userId, {
+
+      // 使用 replyMessage 替代 pushMessage
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
       })
@@ -406,7 +412,9 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const accessToken = userSession.accessToken
     
     if (!accessToken) {
-      await client.pushMessage(userId, {
+      // 恢復正常選單並回覆錯誤
+      await restoreMenuFromLoading(client, userId, false)
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 無法取得用戶認證資訊，請重新登入。'
       })
@@ -423,7 +431,9 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     }
     
     if (orders.length === 0) {
-      await client.pushMessage(userId, {
+      // 恢復正常選單並回覆結果
+      await restoreMenuFromLoading(client, userId, true)
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`
       })
@@ -437,22 +447,36 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     console.log(`📋 輪播顯示訂單: ${recentOrders.map(o => `${o.order_code}(ID:${o.id})`).join(', ')}`)
     
     try {
+      // 恢復正常選單
+      await restoreMenuFromLoading(client, userId, true)
+
       const carouselMessage = createOrderCarousel(recentOrders)
-      
-      // 發送輪播訊息
-      await client.pushMessage(userId, carouselMessage)
-      
-      // 如果有更多訂單，發送提示訊息
-      if (orders.length > 10) {
-        await client.pushMessage(userId, {
+
+      // 準備回覆訊息陣列
+      const replyMessages: any[] = [
+        {
           type: 'text',
-          text: `📋 ${userSession.memberName || '會員'}，您共有 ${orders.length} 筆訂單記錄，上面顯示的是最近的 ${recentOrders.length} 筆。\n\n若需查看更多，請聯絡客服。`
+          text: `✅ 查詢完成！找到 ${orders.length} 筆訂單記錄`
+        },
+        carouselMessage
+      ]
+
+      // 如果有更多訂單，加入提示訊息
+      if (orders.length > 10) {
+        replyMessages.push({
+          type: 'text',
+          text: `💡 上面顯示的是最近的 ${recentOrders.length} 筆訂單\n若需查看更多，請聯絡客服。`
         })
       }
+
+      // 一次性發送所有訊息
+      await client.replyMessage(event.replyToken, replyMessages)
+
     } catch (cardCreationError) {
       console.error('建立訂單卡片錯誤:', cardCreationError)
-      // 如果卡片創建失敗，發送簡單的錯誤訊息
-      await client.pushMessage(userId, {
+      // 恢復正常選單並發送錯誤訊息
+      await restoreMenuFromLoading(client, userId, true)
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。\n\n請稍後再試或聯絡客服。`
       })
@@ -461,9 +485,11 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
 
   } catch (error) {
     console.error('查詢訂單錯誤:', error)
-    await client.pushMessage(userId, {
+    // 恢復正常選單並回覆錯誤
+    await restoreMenuFromLoading(client, userId, true)
+    await client.replyMessage(event.replyToken, {
       type: 'text',
-      text: '❌ 查詢訂單時發生錯誤，請稍後再試。'
+      text: `❌ 查詢訂單時發生錯誤，請稍後再試。`
     })
     return
   }
@@ -504,7 +530,8 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
       }
       
-      await client.pushMessage(userId, message)
+      // 這是 handleCreateOrder 中的錯誤，應該使用 replyMessage 因為有 replyToken
+      await client.replyMessage(event.replyToken, message)
       return
     }
     
@@ -543,7 +570,8 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     text: `📱 ${memberName}，您好！\n\n🏥 中藥預約服務流程：\n1️⃣ 上傳藥單圖片\n2️⃣ 選擇配藥藥局\n3️⃣ 確認訂單資訊\n4️⃣ 等待配藥通知\n\n📷 請直接上傳您的藥單圖片開始預約！`
   }
   
-  await client.pushMessage(userId, message)
+  // 這是 handleCreateOrder 的最終回覆，應該使用 replyMessage
+  await client.replyMessage(event.replyToken, message)
 }
 
 // 處理本地密碼修改 (開發環境)
@@ -558,7 +586,8 @@ async function handleChangePasswordLocal(event: PostbackEvent, client: Client, u
   
   // 檢查用戶是否已登入
   if (!userState.accessToken || !userState.memberId) {
-    await client.pushMessage(userId, {
+    // 這是 handleChangePasswordLocal 的錯誤回覆，應該使用 replyMessage
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n請使用下方選單中的「中藥預約」功能重新登入。'
     })
@@ -578,7 +607,8 @@ async function handleChangePasswordLocal(event: PostbackEvent, client: Client, u
     }
   })
   
-  await client.pushMessage(userId, {
+  // 這是 handleChangePasswordLocal 的正常回覆，應該使用 replyMessage
+  await client.replyMessage(event.replyToken, {
     type: 'text',
     text: '🔐 修改密碼\n\n請輸入您的舊密碼：'
   })

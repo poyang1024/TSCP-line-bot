@@ -3,6 +3,7 @@ import { searchPharmacies } from '../services/apiService';
 import { createPharmacyCarousel, createPharmacyPaginationButtons } from '../templates/messageTemplates';
 import { getUserState, isUserLoggedIn } from '../services/userService';
 import { getUserLoginState } from '../services/redisService';
+import { setLoadingState, restoreMenuFromLoading } from '../services/menuManager';
 
 export async function handlePharmacySearch(event: MessageEvent, client: Client): Promise<void> {
   try {
@@ -102,17 +103,14 @@ export async function handlePharmacySearch(event: MessageEvent, client: Client):
 // 處理藥局分頁導航
 export async function handlePharmacyPageNavigation(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId;
-  
+
   try {
-    
-    // 立即發送確認訊息，讓用戶知道系統已收到請求
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '🏥 正在載入藥局列表，請稍候...'
-    });
-    
+    // 立即切換到 Loading 狀態
+    await setLoadingState(client, userId!);
+
     if (!userId) {
-      await client.pushMessage(userId!, {
+      await restoreMenuFromLoading(client, userId!, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 無法識別用戶身份'
       });
@@ -121,9 +119,10 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
 
     // 檢查 Redis 中的登入狀態
     const loginState = await getUserLoginState(userId);
-    
+
     if (!loginState) {
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 請先登入才能查看藥局'
       });
@@ -143,9 +142,10 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     }
 
     const pharmacies = await searchPharmacies(token, searchKeyword);
-    
+
     if (pharmacies.length === 0) {
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '🏥 沒有找到可用的藥局。'
       });
@@ -155,22 +155,21 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     // 創建指定頁面的輪播
     const carouselMessage = createPharmacyCarousel(pharmacies, page);
     const messages = [carouselMessage];
-    
+
     // 添加分頁按鈕
     if (pharmacies.length > 10) {
       const paginationButtons = createPharmacyPaginationButtons(pharmacies, page);
       messages.push(paginationButtons);
     }
-    
-    await client.pushMessage(userId, messages[0]);
-    if (messages.length > 1) {
-      await client.pushMessage(userId, messages[1]);
-    }
-    
+
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, messages);
+
   } catch (error) {
     console.error('處理藥局分頁錯誤:', error);
     if (userId) {
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 查看藥局時發生錯誤，請稍後再試。'
       });

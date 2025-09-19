@@ -5,6 +5,7 @@ import { createOrderDetailCard, createPharmacyCarousel, createPharmacyPagination
 import { handleOrderInquiry } from './orderHandler';
 import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
+import { setLoadingState, restoreMenuFromLoading } from '../services/menuManager';
 import { handlePharmacyPageNavigation } from './pharmacyHandler';
 import FormData from 'form-data';
 import fs from 'fs';
@@ -140,12 +141,9 @@ export async function handlePostback(event: PostbackEvent, client: Client): Prom
 
 async function handlePharmacySelection(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
-  
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '🏥 正在處理您的藥局選擇，請稍候...'
-  });
+
+  // 立即切換到 Loading 狀態
+  await setLoadingState(client, userId);
   
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
@@ -153,7 +151,8 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   console.log(`🏥 用戶 ${userId} 選擇藥局 ${pharmacyId}`);
   
   if (!userState.accessToken) {
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, false);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 請先登入會員帳號'
     });
@@ -174,7 +173,8 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   
   if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
     console.log(`❌ 用戶狀態檢查失敗 - 缺少藥單資料`);
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '📷 請先上傳藥單照片，然後再選擇藥局。'
     });
@@ -191,9 +191,10 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   });
   
   console.log(`✅ 已儲存藥局選擇: ${pharmacyId}`);
-  
-  // 詢問取藥方式
-  await client.pushMessage(userId, {
+
+  // 恢復正常選單並詢問取藥方式
+  await restoreMenuFromLoading(client, userId, true);
+  await client.replyMessage(event.replyToken, {
     type: 'template',
     altText: '選擇取藥方式',
     template: {
@@ -218,12 +219,9 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
 
 async function handleOrderConfirmation(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
-  
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '📋 正在建立您的訂單，請稍候...'
-  });
+
+  // 立即切換到 Loading 狀態
+  await setLoadingState(client, userId);
   
   const userState = getUserState(userId);
   const pharmacyId = data.get('pharmacy_id');
@@ -233,7 +231,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
   
   // 檢查外送功能是否可用
   if (isDelivery) {
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '🚚 外送到府功能即將開放！\n\n目前僅提供到店自取服務，請選擇到店自取選項。\n\n感謝您的耐心等候。'
     });
@@ -253,7 +252,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       isProduction,
       userState: userState
     });
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 訂單資訊不完整，請重新上傳藥單並選擇藥局。'
     });
@@ -297,7 +297,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     
     if (!userState.tempData.prescriptionFile) {
       console.error(`❌ 藥單檔案路徑不存在`);
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 藥單檔案遺失，請重新上傳。'
       });
@@ -312,7 +313,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         const messageId = userState.tempData.messageId;
         if (!messageId) {
           console.error(`❌ 臨時檔案缺少 messageId`);
-          await client.pushMessage(userId, {
+          await restoreMenuFromLoading(client, userId, true);
+          await client.replyMessage(event.replyToken, {
             type: 'text',
             text: '❌ 藥單檔案資訊不完整，請重新上傳。'
           });
@@ -340,7 +342,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         // 從實際檔案讀取
         if (!fs.existsSync(userState.tempData.prescriptionFile)) {
           console.error(`❌ 藥單檔案不存在:`, userState.tempData.prescriptionFile);
-          await client.pushMessage(userId, {
+          await restoreMenuFromLoading(client, userId, true);
+          await client.replyMessage(event.replyToken, {
             type: 'text',
             text: '❌ 藥單檔案遺失，請重新上傳。'
           });
@@ -353,7 +356,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       
     } catch (readError) {
       console.error('❌ 讀取藥單檔案失敗:', readError);
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 讀取藥單檔案失敗，請重新上傳。'
       });
@@ -394,29 +398,38 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
         text: `🎉 訂單建立成功！\n\n📋 訂單編號：${order.order_code || '系統產生中'}\n🏥 配藥藥局：${order.area_name || '選定藥局'}\n🚚 取藥方式：${isDelivery ? '外送到府' : '到店自取'}\n\n藥局會盡快處理您的訂單，請耐心等候。`
       };
       
+      // 恢復正常選單並回覆結果
+      await restoreMenuFromLoading(client, userId, true);
+
       // 如果有完整的訂單資料，就顯示詳細卡片；否則只顯示成功訊息
       if (order.order_code && order.order_code !== '系統產生中') {
-        await client.pushMessage(userId, successMessage);
-        await client.pushMessage(userId, createOrderDetailCard(order));
+        await client.replyMessage(event.replyToken, [
+          successMessage,
+          createOrderDetailCard(order)
+        ]);
       } else {
-        await client.pushMessage(userId, successMessage);
-        await client.pushMessage(userId, {
-          type: 'text',
-          text: '📋 您可以稍後輸入「我的訂單」查看詳細的訂單資訊。'
-        });
+        await client.replyMessage(event.replyToken, [
+          successMessage,
+          {
+            type: 'text',
+            text: '📋 您可以稍後輸入「我的訂單」查看詳細的訂單資訊。'
+          }
+        ]);
       }
       
     } else {
       console.error('❌ 訂單建立失敗 - API 回傳失敗');
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 訂單建立失敗，請檢查網路連線後稍後再試。'
       });
     }
-    
+
   } catch (error) {
     console.error('❌ 建立訂單錯誤:', error);
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: `❌ 訂單建立失敗：${error instanceof Error ? error.message : '未知錯誤'}，請稍後再試。`
     });
@@ -426,17 +439,15 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
 async function handleContactPharmacy(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
   
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '📞 正在查詢藥局聯絡資訊，請稍候...'
-  });
+  // 立即切換到 Loading 狀態
+  await setLoadingState(client, userId);
   
   const userState = getUserState(userId);
   const orderId = data.get('order_id');
   
   if (!userState.accessToken || !orderId) {
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 無法查看藥局聯絡資訊'
     });
@@ -446,18 +457,20 @@ async function handleContactPharmacy(event: PostbackEvent, client: Client, data:
   try {
     const order = await getOrderDetail(userState.accessToken, parseInt(orderId));
     
+    await restoreMenuFromLoading(client, userId, true);
+
     if (order && order.area_phone) {
-      await client.pushMessage(userId, {
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `📞 藥局聯絡資訊\n\n🏥 ${order.area_name}\n📞 ${order.area_phone}\n\n您可以直接撥打此電話聯絡藥局。`
       });
     } else if (order) {
-      await client.pushMessage(userId, {
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `🏥 藥局：${order.area_name}\n\n📞 很抱歉，此藥局暫無提供電話聯絡資訊。\n\n您可以直接前往藥局或查看地圖位置。`
       });
     } else {
-      await client.pushMessage(userId, {
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 找不到訂單資訊'
       });
@@ -465,7 +478,8 @@ async function handleContactPharmacy(event: PostbackEvent, client: Client, data:
     
   } catch (error) {
     console.error('查看藥局聯絡資訊錯誤:', error);
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 查看藥局聯絡資訊時發生錯誤'
     });
@@ -475,17 +489,15 @@ async function handleContactPharmacy(event: PostbackEvent, client: Client, data:
 async function handleViewOrderDetail(event: PostbackEvent, client: Client, data: URLSearchParams): Promise<void> {
   const userId = event.source.userId!;
   
-  // 立即發送確認訊息，讓用戶知道系統已收到請求
-  await client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: '📋 正在查詢訂單詳情，請稍候...'
-  });
+  // 立即切換到 Loading 狀態
+  await setLoadingState(client, userId);
   
   const userState = getUserState(userId);
   const orderId = data.get('order_id');
   
   if (!userState.accessToken || !orderId) {
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 無法查看訂單詳情'
     });
@@ -524,21 +536,24 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
         detailText += `🔑 確認碼：${order.confirmation_code}\n`;
       }
       
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: detailText
       });
-      
+
     } else {
-      await client.pushMessage(userId, {
+      await restoreMenuFromLoading(client, userId, true);
+      await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 找不到訂單資訊'
       });
     }
-    
+
   } catch (error) {
     console.error('查看訂單詳情錯誤:', error);
-    await client.pushMessage(userId, {
+    await restoreMenuFromLoading(client, userId, true);
+    await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 查看訂單詳情時發生錯誤'
     });
