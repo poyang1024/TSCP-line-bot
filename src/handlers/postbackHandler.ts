@@ -151,7 +151,7 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   console.log(`🏥 用戶 ${userId} 選擇藥局 ${pharmacyId}`);
   
   if (!userState.accessToken) {
-    await restoreMenuFromLoading(client, userId, false);
+    await restoreMenuFromLoading(client, userId);
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '❌ 請先登入會員帳號'
@@ -174,10 +174,19 @@ async function handlePharmacySelection(event: PostbackEvent, client: Client, dat
   if (userState.currentStep !== 'prescription_uploaded' || !hasPrescription) {
     console.log(`❌ 用戶狀態檢查失敗 - 缺少藥單資料`);
     await restoreMenuFromLoading(client, userId);
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '📷 請先上傳藥單照片，然後再選擇藥局。'
-    });
+
+    // 檢查是否是因為訂單已完成而導致狀態被清除
+    if (!userState.currentStep && !userState.tempData) {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '✅ 您的訂單可能已經成功建立完成。\n\n如需查看訂單狀態，請使用下方選單的「我的訂單」功能。\n\n如需建立新訂單，請重新上傳藥單照片。'
+      });
+    } else {
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '📷 請先上傳藥單照片，然後再選擇藥局。'
+      });
+    }
     return;
   }
   
