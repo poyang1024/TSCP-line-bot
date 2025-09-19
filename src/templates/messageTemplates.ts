@@ -121,11 +121,11 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
   const totalPages = Math.ceil(pharmacies.length / pageSize);
 
   const columns = currentPagePharmacies.map(pharmacy => {
-    // 清理和限制文字長度，避免編碼問題和內容過長
-    const cleanTitle = (pharmacy.name || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 40);
-    const cleanOrgName = (pharmacy.org_name || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 30);
-    const cleanAddress = (pharmacy.address || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 50);
-    const cleanPhone = (pharmacy.phone || '').replace(/[^\u0000-\u007F\u4e00-\u9fff\-\(\)\s]/g, '').substring(0, 20);
+    // 清理無效字符但保留 emoji，避免編碼問題
+    const cleanTitle = (pharmacy.name || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').substring(0, 40);
+    const cleanOrgName = (pharmacy.org_name || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').substring(0, 30);
+    const cleanAddress = (pharmacy.address || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').substring(0, 50);
+    const cleanPhone = (pharmacy.phone || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').substring(0, 20);
 
     let text = `${cleanOrgName}\n📍 ${cleanAddress}`;
     if (cleanPhone) {
