@@ -114,33 +114,46 @@ export function createLoginPrompt(): Message {
 
 // 藥局輪播卡片 (支援分頁)
 export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1): Message {
-  const pageSize = 10;
+  const pageSize = 6;  // 減少每頁顯示數量，避免訊息過大
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const currentPagePharmacies = pharmacies.slice(startIndex, endIndex);
   const totalPages = Math.ceil(pharmacies.length / pageSize);
-  
-  const columns = currentPagePharmacies.map(pharmacy => ({
-    title: pharmacy.name,
-    text: `${pharmacy.org_name}\n📍 ${pharmacy.address}${pharmacy.phone ? `\n📞 ${pharmacy.phone}` : ''}`,
-    actions: [
-      {
-        type: 'postback' as const,
-        label: '選擇此藥局',
-        data: `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
-      },
-      {
-        type: 'uri' as const,
-        label: '🗺️ 查看地圖',
-        uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
-      },
-      ...(pharmacy.phone ? [{
-        type: 'uri' as const,
-        label: '📞 聯絡藥局',
-        uri: `tel:${pharmacy.phone}`
-      }] : [])
-    ]
-  }));
+
+  const columns = currentPagePharmacies.map(pharmacy => {
+    // 清理和限制文字長度，避免編碼問題和內容過長
+    const cleanTitle = (pharmacy.name || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 40);
+    const cleanOrgName = (pharmacy.org_name || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 30);
+    const cleanAddress = (pharmacy.address || '').replace(/[^\u0000-\u007F\u4e00-\u9fff]/g, '').substring(0, 50);
+    const cleanPhone = (pharmacy.phone || '').replace(/[^\u0000-\u007F\u4e00-\u9fff\-\(\)\s]/g, '').substring(0, 20);
+
+    let text = `${cleanOrgName}\n📍 ${cleanAddress}`;
+    if (cleanPhone) {
+      text += `\n📞 ${cleanPhone}`;
+    }
+
+    return {
+      title: cleanTitle,
+      text: text,
+      actions: [
+        {
+          type: 'postback' as const,
+          label: '選擇此藥局',
+          data: `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
+        },
+        {
+          type: 'uri' as const,
+          label: '🗺️ 查看地圖',
+          uri: `https://www.google.com/maps/search/${encodeURIComponent(cleanAddress)}`
+        },
+        ...(cleanPhone ? [{
+          type: 'uri' as const,
+          label: '📞 聯絡藥局',
+          uri: `tel:${cleanPhone}`
+        }] : [])
+      ]
+    };
+  });
 
   return {
     type: 'template',
@@ -154,7 +167,7 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
 
 // 藥局分頁導航按鈕
 export function createPharmacyPaginationButtons(pharmacies: Pharmacy[], currentPage: number): Message {
-  const pageSize = 10;
+  const pageSize = 6;  // 與 createPharmacyCarousel 保持一致
   const totalPages = Math.ceil(pharmacies.length / pageSize);
   
   if (totalPages <= 1) {
