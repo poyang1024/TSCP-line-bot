@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.API_BASE_URL || '';
 // 建立 axios 實例
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // 增加到30秒
 });
 
 // LINE 直接登入
@@ -33,7 +33,7 @@ export async function loginWithLine(lineUserId: string): Promise<Member | null> 
       params: {
         line_user_id: lineUserId
       },
-      timeout: 10000
+      timeout: 30000 // 增加到30秒
     });
     
     console.log('📥 API 回應狀態:', response.status);
