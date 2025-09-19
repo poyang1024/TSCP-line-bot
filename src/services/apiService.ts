@@ -93,15 +93,19 @@ export async function loginWithLine(lineUserId: string): Promise<Member | null> 
 }
 
 // 會員登入
-export async function loginMember(account: string, password: string): Promise<Member | null> {
+export async function loginMember(account: string, password: string, lineUserId: string): Promise<Member | null> {
   try {
     console.log('🔗 開始會員登入...');
     console.log('📋 帳號:', account);
-    
-    const response = await api.post('/login/tscp', {
+    console.log('📋 LINE ID:', lineUserId);
+
+    const requestData = {
       account,
-      password
-    });
+      password,
+      line_oa: lineUserId
+    };
+
+    const response = await api.post('/login/tscp', requestData);
     
     console.log('📥 API 回應狀態:', response.status);
     console.log('📥 API 回應資料:', JSON.stringify(response.data, null, 2));
@@ -230,10 +234,14 @@ export async function getOrderDetail(token: string, orderId: number): Promise<Or
 }
 
 // 新增訂單
-export async function createOrder(token: string, orderData: any): Promise<Order | null> {
+export async function createOrder(token: string, orderData: any, lineUserId: string): Promise<Order | null> {
   try {
     console.log('📤 送出建立訂單請求...');
-    
+    console.log('📋 LINE ID:', lineUserId);
+
+    // 加入 LINE ID 到 formData 中
+    orderData.append('line_oa', lineUserId);
+
     const response = await api.post('/delivery/medicine', orderData, {
       headers: {
         'Authorization': `Bearer ${token}`,

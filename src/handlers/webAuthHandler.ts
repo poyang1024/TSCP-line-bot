@@ -20,8 +20,8 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
       return;
     }
     
-    // 呼叫登入 API
-    const member = await loginMember(account, password);
+    // 呼叫登入 API，傳送 LINE ID 給後台
+    const member = await loginMember(account, password, lineUserId);
     
     if (member) {
       // 建立 JWT Token

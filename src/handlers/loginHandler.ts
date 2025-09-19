@@ -401,8 +401,8 @@ async function performLogin(
   }
   
   try {
-    // 呼叫登入 API
-    const member = await loginMember(identifier, password);
+    // 呼叫登入 API，傳送 LINE ID 給後台
+    const member = await loginMember(identifier, password, userId);
     
     if (member) {
       console.log('✅ 帳號密碼登入成功');

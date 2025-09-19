@@ -372,8 +372,8 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
     
     console.log(`📤 準備傳送訂單資料... (${isProduction ? '生產模式 (buffer)' : '開發模式 (file)'})`);
     
-    // 建立訂單
-    const order = await createOrder(userState.accessToken, formData);
+    // 建立訂單，傳送 LINE ID 給後台
+    const order = await createOrder(userState.accessToken, formData, userId);
     
     if (order) {
       console.log('✅ 訂單建立成功:', order);
