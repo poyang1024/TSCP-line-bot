@@ -6,7 +6,7 @@ import { createLoginMenu } from './loginHandler'
 import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
 import { createOrderDetailCard, createOrderCarousel } from '../templates/messageTemplates'
-import { removeUserLoginState, getUserLoginState, removeWebSocketConnection } from '../services/redisService'
+import { removeUserLoginState, getUserLoginState, removeWebSocketConnection, setUserLoginState } from '../services/redisService'
 
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
@@ -159,17 +159,40 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
   }
   
   // 檢查 Redis 中的登入狀態
-  const loginState = await getUserLoginState(userId);
-  
+  let loginState = await getUserLoginState(userId);
+
   if (!loginState) {
-    // 沒有有效的登入狀態，切換回訪客模式
-    console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
-    await restoreMenuFromLoading(client, userId)  // 讓系統自動檢查登入狀態
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
-    })
-    return
+    // Redis 中沒有登入狀態，嘗試從 Web 登入狀態恢復
+    console.log(`⚠️ Redis 中無登入狀態，嘗試從 Web 登入狀態恢復: ${userId}`)
+
+    // 嘗試檢查 Web 登入狀態
+    const { ensureUserState } = await import('../services/userService')
+    await ensureUserState(userId)
+    const userState = getUserState(userId)
+
+    if (userState.accessToken && userState.memberId) {
+      // 成功恢復登入狀態，創建新的 loginState
+      console.log(`🔄 成功從 Web 狀態恢復用戶 ${userId} 的登入`)
+      const recoveredLoginState = {
+        accessToken: userState.accessToken,
+        memberId: userState.memberId,
+        memberName: userState.memberName || '會員',
+        loginTime: Date.now()
+      }
+
+      // 同步到 Redis
+      await setUserLoginState(userId, recoveredLoginState)
+      loginState = recoveredLoginState
+    } else {
+      // 確實已登出
+      console.log(`⚠️ 用戶 ${userId} 確實已登出，切換回訪客模式`)
+      await restoreMenuFromLoading(client, userId)  // 讓系統自動檢查登入狀態
+      await client.replyMessage(event.replyToken, {
+        type: 'text',
+        text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
+      })
+      return
+    }
   }
   
   // 如果沒有有效的 JWT token，但有 Redis 登入狀態，創建臨時 session
@@ -374,14 +397,43 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const redisLoginState = await getUserLoginState(userId)
     
     if (!redisLoginState) {
-      // Redis 中沒有登入狀態，用戶已登出
-      console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
-      await restoreMenuFromLoading(client, userId)  // 讓系統自動檢查登入狀態
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
-      })
-      return
+      // Redis 中沒有登入狀態，嘗試從 Web 登入狀態恢復
+      console.log(`⚠️ Redis 中無登入狀態，嘗試從 Web 登入狀態恢復: ${userId}`)
+
+      // 嘗試檢查 Web 登入狀態
+      const { ensureUserState } = await import('../services/userService')
+      await ensureUserState(userId)
+      const userState = getUserState(userId)
+
+      if (userState.accessToken && userState.memberId) {
+        // 成功恢復登入狀態，創建 session
+        console.log(`🔄 成功從 Web 狀態恢復用戶 ${userId} 的登入`)
+        userSession = {
+          lineId: userId,
+          memberId: userState.memberId,
+          memberName: userState.memberName || '會員',
+          accessToken: userState.accessToken,
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 3600
+        }
+
+        // 同步到 Redis
+        await setUserLoginState(userId, {
+          accessToken: userState.accessToken,
+          memberId: userState.memberId,
+          memberName: userState.memberName || '會員',
+          loginTime: Date.now()
+        })
+      } else {
+        // 確實已登出
+        console.log(`⚠️ 用戶 ${userId} 確實已登出，切換回訪客模式`)
+        await restoreMenuFromLoading(client, userId)  // 讓系統自動檢查登入狀態
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
+        })
+        return
+      }
     }
     
     // Redis 中有登入狀態，同步到記憶體
