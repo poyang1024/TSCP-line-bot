@@ -109,7 +109,7 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     await setLoadingState(client, userId!);
 
     if (!userId) {
-      await restoreMenuFromLoading(client, userId!, true);
+      await restoreMenuFromLoading(client, userId!);
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 無法識別用戶身份'
@@ -121,7 +121,7 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     const loginState = await getUserLoginState(userId);
 
     if (!loginState) {
-      await restoreMenuFromLoading(client, userId, true);
+      await restoreMenuFromLoading(client, userId);
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 請先登入才能查看藥局'
@@ -144,7 +144,7 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
     const pharmacies = await searchPharmacies(token, searchKeyword);
 
     if (pharmacies.length === 0) {
-      await restoreMenuFromLoading(client, userId, true);
+      await restoreMenuFromLoading(client, userId);
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '🏥 沒有找到可用的藥局。'
@@ -162,13 +162,13 @@ export async function handlePharmacyPageNavigation(event: PostbackEvent, client:
       messages.push(paginationButtons);
     }
 
-    await restoreMenuFromLoading(client, userId, true);
+    await restoreMenuFromLoading(client, userId);
     await client.replyMessage(event.replyToken, messages);
 
   } catch (error) {
     console.error('處理藥局分頁錯誤:', error);
     if (userId) {
-      await restoreMenuFromLoading(client, userId, true);
+      await restoreMenuFromLoading(client, userId);
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 查看藥局時發生錯誤，請稍後再試。'

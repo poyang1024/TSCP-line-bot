@@ -165,9 +165,6 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
     // 沒有有效的登入狀態，切換回訪客模式
     console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
     await updateUserRichMenu(client, userId, false)
-    
-    // 恢復正常選單並回覆錯誤
-    await restoreMenuFromLoading(client, userId, false)
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
@@ -277,7 +274,7 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
   }
 
   // 恢復正常選單並回覆會員中心資訊
-  await restoreMenuFromLoading(client, userId, true)
+  await restoreMenuFromLoading(client, userId)
 
   await client.replyMessage(event.replyToken, [
     {
@@ -412,8 +409,8 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     const accessToken = userSession.accessToken
     
     if (!accessToken) {
-      // 恢復正常選單並回覆錯誤
-      await restoreMenuFromLoading(client, userId, false)
+      // 恢復正常選單並回覆錯誤（自動判斷登入狀態）
+      await restoreMenuFromLoading(client, userId)
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '❌ 無法取得用戶認證資訊，請重新登入。'
@@ -432,7 +429,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     
     if (orders.length === 0) {
       // 恢復正常選單並回覆結果
-      await restoreMenuFromLoading(client, userId, true)
+      await restoreMenuFromLoading(client, userId)
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，您目前沒有任何訂單記錄。\n\n如需配藥服務，請先搜尋藥局並上傳藥單。`
@@ -448,7 +445,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     
     try {
       // 恢復正常選單
-      await restoreMenuFromLoading(client, userId, true)
+      await restoreMenuFromLoading(client, userId)
 
       const carouselMessage = createOrderCarousel(recentOrders)
 
@@ -475,7 +472,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     } catch (cardCreationError) {
       console.error('建立訂單卡片錯誤:', cardCreationError)
       // 恢復正常選單並發送錯誤訊息
-      await restoreMenuFromLoading(client, userId, true)
+      await restoreMenuFromLoading(client, userId)
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: `📋 ${userSession.memberName || '會員'}，找到 ${orders.length} 筆訂單，但顯示詳情時發生錯誤。\n\n請稍後再試或聯絡客服。`
@@ -486,7 +483,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
   } catch (error) {
     console.error('查詢訂單錯誤:', error)
     // 恢復正常選單並回覆錯誤
-    await restoreMenuFromLoading(client, userId, true)
+    await restoreMenuFromLoading(client, userId)
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: `❌ 查詢訂單時發生錯誤，請稍後再試。`

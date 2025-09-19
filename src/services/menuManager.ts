@@ -156,8 +156,11 @@ export async function setLoadingState(client: Client, userId: string): Promise<v
 }
 
 // 從 Loading 狀態恢復到正常選單
-export async function restoreMenuFromLoading(client: Client, userId: string, isLoggedIn: boolean): Promise<void> {
-  await updateUserRichMenu(client, userId, isLoggedIn)
+export async function restoreMenuFromLoading(client: Client, userId: string, isLoggedIn?: boolean): Promise<void> {
+  // 如果沒有提供 isLoggedIn 參數，則自動檢查用戶的登入狀態
+  const { isUserLoggedIn } = await import('../services/userService')
+  const actualLoginStatus = isLoggedIn !== undefined ? isLoggedIn : isUserLoggedIn(userId)
+  await updateUserRichMenu(client, userId, actualLoginStatus)
 }
 
 // 動態切換選單
