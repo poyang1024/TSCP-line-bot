@@ -7,6 +7,7 @@ import { handleLoginPostback } from './loginHandler';
 import { handleRichMenuPostback } from './richMenuHandler';
 import { setLoadingState, restoreMenuFromLoading } from '../services/menuManager';
 import { handlePharmacyPageNavigation } from './pharmacyHandler';
+import { OrderHistory } from '../types';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -544,7 +545,33 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
       if (order.confirmation_code) {
         detailText += `🔑 確認碼：${order.confirmation_code}\n`;
       }
-      
+
+      // 添加訂單歷史記錄
+      if (order.history && order.history.length > 0) {
+        detailText += `\n📋 訂單歷史：\n`;
+        // 按時間排序（最新的在前）
+        const sortedHistory = [...order.history].sort((a, b) => b.created_at - a.created_at);
+
+        sortedHistory.forEach((historyItem: OrderHistory, index: number) => {
+          const stateText = getOrderStateText(historyItem.state);
+          // 將 UNIX timestamp 轉換為台灣時間
+          const date = new Date(historyItem.created_at * 1000).toLocaleString('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          detailText += `${index + 1}. ${stateText} (${date})`;
+          if (historyItem.reason) {
+            detailText += `\n   原因：${historyItem.reason}`;
+          }
+          detailText += `\n`;
+        });
+      }
+
       await restoreMenuFromLoading(client, userId);
       await client.replyMessage(event.replyToken, {
         type: 'text',

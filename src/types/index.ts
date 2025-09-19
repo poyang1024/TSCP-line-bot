@@ -54,6 +54,13 @@ export interface Pharmacy {
   phone?: string;
 }
 
+// 訂單歷史記錄
+export interface OrderHistory {
+  state: number;
+  created_at: number;  // UNIX timestamp
+  reason?: string | null;  // 狀態變更原因
+}
+
 // 訂單資料
 export interface Order {
   id: number;
@@ -73,6 +80,7 @@ export interface Order {
   plan_date?: number;
   remark?: string;
   files: string[];
+  history?: OrderHistory[];  // 訂單歷史記錄
 }
 
 // 訂單狀態
