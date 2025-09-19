@@ -168,6 +168,53 @@ async function createMemberRichMenu() {
   }
 }
 
+// 建立 Loading 狀態圖文選單
+async function createLoadingRichMenu() {
+  console.log('🎨 建立 Loading 狀態圖文選單...');
+
+  const richMenu = {
+    size: {
+      width: 2500,
+      height: 1686
+    },
+    selected: true,
+    name: 'Loading 選單',
+    chatBarText: '處理中...',
+    areas: [
+      // 整個區域都不可點擊，顯示處理中狀態
+      {
+        bounds: { x: 0, y: 0, width: 2500, height: 1686 },
+        action: {
+          type: 'postback',
+          data: `action=processing&message=${encodeURIComponent('⏳ 系統正在處理中，請稍候...')}`
+        }
+      }
+    ]
+  };
+
+  try {
+    // 建立圖文選單
+    const richMenuId = await client.createRichMenu(richMenu);
+    console.log('✅ Loading 圖文選單建立成功，ID:', richMenuId);
+
+    // 上傳圖片
+    const imagePath = path.join(__dirname, '../public/loading_richmenu.png');
+    if (fs.existsSync(imagePath)) {
+      const imageBuffer = fs.readFileSync(imagePath);
+      await client.setRichMenuImage(richMenuId, imageBuffer, 'image/png');
+      console.log('✅ Loading 圖文選單圖片上傳成功');
+    } else {
+      console.warn('⚠️  Loading 圖文選單圖片檔案不存在:', imagePath);
+      console.warn('⚠️  請確保檔案 public/loading_richmenu.png 存在');
+    }
+
+    return richMenuId;
+  } catch (error) {
+    console.error('❌ 建立 Loading 圖文選單失敗:', error);
+    throw error;
+  }
+}
+
 // 列出現有的圖文選單
 async function listExistingRichMenus() {
   try {
@@ -222,9 +269,10 @@ async function main() {
 
     // 建立新的圖文選單
     console.log('🎨 建立新的圖文選單...\n');
-    
+
     const guestMenuId = await createGuestRichMenu();
     const memberMenuId = await createMemberRichMenu();
+    const loadingMenuId = await createLoadingRichMenu();
 
     // 輸出結果
     console.log('\n🎉 圖文選單建立完成！');
@@ -232,6 +280,7 @@ async function main() {
     console.log('=' .repeat(50));
     console.log(`GUEST_RICH_MENU_ID=${guestMenuId}`);
     console.log(`MEMBER_RICH_MENU_ID=${memberMenuId}`);
+    console.log(`LOADING_RICH_MENU_ID=${loadingMenuId}`);
     console.log('=' .repeat(50));
     
     console.log('\n✅ 完成！現在你可以重新啟動應用程式來使用新的圖文選單。');
@@ -250,6 +299,7 @@ if (require.main === module) {
 module.exports = {
   createGuestRichMenu,
   createMemberRichMenu,
+  createLoadingRichMenu,
   listExistingRichMenus,
   deleteRichMenu
 };
