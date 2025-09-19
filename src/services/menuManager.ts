@@ -149,6 +149,9 @@ export async function setLoadingState(client: Client, userId: string): Promise<v
       await client.unlinkRichMenuFromUser(userId)
       await client.linkRichMenuToUser(userId, RICH_MENU_IDS.LOADING)
       console.log(`⏳ 已切換到 Loading 狀態: ${userId}`)
+
+      // 增加短暫延遲，確保 Loading 狀態有時間顯示給用戶
+      await new Promise(resolve => setTimeout(resolve, 150))
     }
   } catch (error) {
     console.error('❌ 切換到 Loading 狀態失敗:', error)

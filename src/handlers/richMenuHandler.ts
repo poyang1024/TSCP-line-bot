@@ -164,7 +164,7 @@ async function handleMemberCenter(event: PostbackEvent, client: Client, userId: 
   if (!loginState) {
     // 沒有有效的登入狀態，切換回訪客模式
     console.log(`⚠️ 用戶 ${userId} 無有效登入狀態，切換回訪客模式`)
-    await updateUserRichMenu(client, userId, false)
+    await restoreMenuFromLoading(client, userId, false)
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
@@ -376,9 +376,7 @@ async function handleViewOrders(event: PostbackEvent, client: Client, userId: st
     if (!redisLoginState) {
       // Redis 中沒有登入狀態，用戶已登出
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
-      await updateUserRichMenu(client, userId, false)
-
-      // 使用 replyMessage 替代 pushMessage
+      await restoreMenuFromLoading(client, userId, false)
       await client.replyMessage(event.replyToken, {
         type: 'text',
         text: '🔒 您的登入狀態已過期，請重新登入會員帳號\n\n選單已切換為訪客模式，請使用「中藥預約」功能重新登入。'
@@ -520,7 +518,7 @@ async function handleCreateOrder(event: PostbackEvent, client: Client, userId: s
     if (!redisLoginState) {
       // Redis 中沒有登入狀態，用戶已登出
       console.log(`⚠️ 用戶 ${userId} 狀態不一致：富選單是會員模式但用戶已登出，切換回訪客模式`)
-      await updateUserRichMenu(client, userId, false)
+      await restoreMenuFromLoading(client, userId, false)
       
       const message = {
         type: 'text' as const,
