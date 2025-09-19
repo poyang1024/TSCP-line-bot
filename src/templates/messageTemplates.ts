@@ -129,15 +129,16 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
         label: '選擇此藥局',
         data: `action=select_pharmacy&pharmacy_id=${pharmacy.id}`
       },
-      pharmacy.phone ? {
+      {
+        type: 'uri' as const,
+        label: '🗺️ 查看地圖',
+        uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
+      },
+      ...(pharmacy.phone ? [{
         type: 'uri' as const,
         label: '📞 聯絡藥局',
         uri: `tel:${pharmacy.phone}`
-      } : {
-        type: 'uri' as const,
-        label: '查看地圖',
-        uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
-      }
+      }] : [])
     ]
   }));
 
