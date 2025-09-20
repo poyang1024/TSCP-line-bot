@@ -132,26 +132,46 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
       text += `\n📞 ${pharmacy.phone}`;
     }
 
+    // 建立基本的 actions 陣列
+    const actions: any[] = [
+      {
+        type: 'postback' as const,
+        label: '選擇此藥局',
+        data: `action=select_pharmacy&pharmacy_id=${pharmacy.id || 0}`
+      }
+    ];
+
+    // 條件性加入地圖按鈕
+    if (pharmacy.address) {
+      actions.push({
+        type: 'uri' as const,
+        label: '🗺️ 查看地圖',
+        uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
+      });
+    }
+
+    // 條件性加入電話按鈕
+    if (pharmacy.phone) {
+      actions.push({
+        type: 'uri' as const,
+        label: '📞 聯絡藥局',
+        uri: `tel:${pharmacy.phone}`
+      });
+    }
+
+    // 確保至少有一個 action（LINE 要求），最多三個 actions
+    while (actions.length < 1) {
+      actions.push({
+        type: 'message' as const,
+        label: '查看詳情',
+        text: `查看 ${pharmacy.name || '藥局'} 詳情`
+      });
+    }
+
     return {
       title: pharmacy.name || '藥局',
       text: text,
-      actions: [
-        {
-          type: 'postback' as const,
-          label: '選擇此藥局',
-          data: `action=select_pharmacy&pharmacy_id=${pharmacy.id || 0}`
-        },
-        ...(pharmacy.address ? [{
-          type: 'uri' as const,
-          label: '🗺️ 查看地圖',
-          uri: `https://www.google.com/maps/search/${encodeURIComponent(pharmacy.address)}`
-        }] : []),
-        ...(pharmacy.phone ? [{
-          type: 'uri' as const,
-          label: '📞 聯絡藥局',
-          uri: `tel:${pharmacy.phone}`
-        }] : [])
-      ]
+      actions: actions.slice(0, 3) // LINE Carousel 每個 column 最多 3 個 actions
     };
   });
 
