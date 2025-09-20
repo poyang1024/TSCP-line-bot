@@ -150,21 +150,18 @@ export function createPharmacyCarousel(pharmacies: Pharmacy[], page: number = 1)
       });
     }
 
-    // 條件性加入電話按鈕
+    // 電話按鈕 - 確保所有藥局都有此按鈕
     if (pharmacy.phone) {
       actions.push({
         type: 'uri' as const,
         label: '📞 聯絡藥局',
         uri: `tel:${pharmacy.phone}`
       });
-    }
-
-    // 確保至少有一個 action（LINE 要求），最多三個 actions
-    while (actions.length < 1) {
+    } else {
       actions.push({
         type: 'message' as const,
-        label: '查看詳情',
-        text: `查看 ${pharmacy.name || '藥局'} 詳情`
+        label: '📞 此藥局未提供電話',
+        text: `${pharmacy.name || '藥局'} 未提供聯絡電話`
       });
     }
 
