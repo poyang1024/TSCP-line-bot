@@ -1,8 +1,7 @@
 import { MessageEvent, PostbackEvent, Client, TextMessage, FlexMessage } from '@line/bot-sdk';
-import { getUserState, ensureUserState, updateUserState, updateUserTempData } from '../services/userService';
-import { loginMember, changePassword, loginWithLine } from '../services/apiService';
+import { getUserState, ensureUserState, updateUserState } from '../services/userService';
+import { loginMember, changePassword } from '../services/apiService';
 import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
-import { createMainMenu } from '../templates/messageTemplates';
 import { createUserToken } from '../services/jwtService';
 import { updateUserRichMenu } from '../services/menuManager';
 
@@ -50,17 +49,6 @@ export function createLoginMenu(userId: string): FlexMessage {
             },
             {
               type: 'separator',
-              margin: 'lg'
-            },
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
-                label: 'LINE 直接登入 (即將開放)',
-                data: `action=line_direct_login&userId=${userId}`
-              },
-              style: 'primary',
-              color: '#00C851',
               margin: 'lg'
             },
             {
@@ -156,17 +144,6 @@ export function createLoginMenu(userId: string): FlexMessage {
               type: 'button',
               action: {
                 type: 'postback',
-                label: 'LINE 直接登入 (即將開放)',
-                data: `action=line_direct_login&userId=${userId}`
-              },
-              style: 'primary',
-              color: '#00C851',
-              margin: 'lg'
-            },
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
                 label: '👤 帳號密碼登入',
                 data: `action=account_login&userId=${userId}`
               },
@@ -201,14 +178,6 @@ export function createLoginMenu(userId: string): FlexMessage {
   }
 }
 
-// 產生 LINE Login URL (預留功能)
-export function generateLineLoginUrl(userId: string, state?: string): string {
-  const channelId = process.env.LINE_CHANNEL_ID;
-  const redirectUri = encodeURIComponent(process.env.LINE_LOGIN_REDIRECT_URI || '');
-  const stateParam = state || userId;
-  
-  return `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${redirectUri}&state=${stateParam}&scope=profile%20openid`;
-}
 
 // 處理登入選單的 Postback 事件
 export async function handleLoginPostback(event: PostbackEvent, client: Client): Promise<void> {
@@ -238,100 +207,6 @@ export async function handleLoginPostback(event: PostbackEvent, client: Client):
   }
 
   switch (action) {
-    case 'line_direct_login':
-      console.log('🚀 開始處理 LINE 直接登入');
-      console.log('👤 User ID:', userId);
-      
-      // LINE 直接登入功能即將開放
-      await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: '🔗 LINE 直接登入功能即將開放！\n\n目前請使用「會員登入」或「帳號密碼登入」來使用服務。\n\n感謝您的耐心等候。'
-      });
-      // 原本預計實作的 LINE 直接登入流程如下（暫時註解）
-      // text: '🔗 正在使用 LINE 帳號登入，請稍候...'
-      
-      // try {
-      //   console.log('📞 呼叫 loginWithLine API...');
-      //   const member = await loginWithLine(userId);
-      //   console.log('📋 API 回傳結果:', member ? '有資料' : '無資料');
-        
-      //   if (member) {
-      //     console.log('✅ 會員登入成功');
-      //     console.log('👤 會員 ID:', member.user_id);
-      //     console.log('👤 會員名稱:', member.name);
-      //     console.log('👤 會員帳號:', member.account);
-      //     console.log('🔑 Access Token 長度:', member.access_token?.length || 0);
-      //     console.log('📞 會員電話:', member.info?.phone || '未提供');
-      //     console.log('📍 會員地址:', member.info?.address || '未提供');
-          
-      //     // 登入成功，建立 JWT Token
-      //     const token = createUserToken(userId, member.user_id, member.access_token, member.name);
-      //     console.log('🎫 JWT Token 已建立，長度:', token.length);
-          
-      //     // 更新用戶狀態為已登入，包含個人資訊
-      //     updateUserState(userId, {
-      //       currentStep: 'menu',
-      //       memberId: member.user_id,
-      //       memberName: member.name,
-      //       accessToken: member.access_token,
-      //       tempData: {
-      //         memberInfo: {
-      //           memberId: member.user_id,
-      //           memberName: member.name,
-      //           accessToken: member.access_token
-      //         },
-      //         // 保存會員的個人資訊
-      //         memberPersonalInfo: {
-      //           phone: member.info?.phone,
-      //           address: member.info?.address
-      //         }
-      //       }
-      //     });
-      //     console.log('💾 用戶狀態已更新（包含個人資訊）');
-          
-      //     // 連接 WebSocket
-      //     try {
-      //       connectUserWebSocket(userId, member.user_id, token);
-      //       console.log('🔌 WebSocket 連接成功');
-      //     } catch (wsError) {
-      //       console.error('🔌 WebSocket 連接失敗:', wsError);
-      //     }
-          
-      //     // 更新到會員圖文選單
-      //     try {
-      //       await updateUserRichMenu(client, userId, true);
-      //       console.log('📋 圖文選單更新成功');
-      //     } catch (menuError) {
-      //       console.error('📋 圖文選單更新失敗:', menuError);
-      //     }
-          
-      //     const welcomeMessage = {
-      //       type: 'text' as const,
-      //       text: `🎉 歡迎回來，${member.name}！\n\n您已成功透過 LINE 登入系統。\n\n請點選下方選單使用服務功能。`
-      //     };
-          
-      //     await client.pushMessage(userId, welcomeMessage);
-      //     console.log('💬 歡迎訊息已發送');
-      //   } else {
-      //     console.log('❌ 會員登入失敗 - API 回傳 null');
-      //     await client.pushMessage(userId, {
-      //       type: 'text',
-      //       text: '❌ LINE 登入失敗\n\n可能原因：\n• 您的 LINE 帳號尚未綁定會員資料\n• 網路連線問題\n• 後端 API 無回應\n\n請嘗試使用帳號密碼登入。'
-      //     });
-      //   }
-      // } catch (error) {
-      //   console.error('❌ LINE 直接登入過程發生例外錯誤:');
-      //   console.error('❌ 錯誤類型:', error?.constructor?.name);
-      //   console.error('❌ 錯誤訊息:', error?.message);
-      //   console.error('❌ 錯誤堆疊:', error?.stack);
-        
-      //   await client.pushMessage(userId, {
-      //     type: 'text',
-      //     text: `❌ 登入過程發生錯誤，請稍後再試或使用帳號密碼登入。\n\n📝 技術資訊：${error?.message || '未知錯誤'}`
-      //   });
-      // }
-      break;
-
     case 'account_login':
       updateUserState(userId, { 
         currentStep: 'waiting_account',
@@ -378,17 +253,16 @@ export async function handleLogin(event: MessageEvent, client: Client): Promise<
   } else if (userState.currentStep === 'waiting_password') {
     // 帳號密碼登入
     const account = userState.tempData?.account;
-    await performLogin(userId, account, text, 'account', event, client);
+    await performLogin(userId, account, text, event, client);
   }
 }
 
 // 執行登入邏輯
 async function performLogin(
-  userId: string, 
-  identifier: string | undefined, 
-  password: string, 
-  method: string,
-  event: MessageEvent, 
+  userId: string,
+  identifier: string | undefined,
+  password: string,
+  event: MessageEvent,
   client: Client
 ): Promise<void> {
   if (!identifier) {
@@ -414,7 +288,7 @@ async function performLogin(
       console.log('📍 會員地址:', member.info?.address || '未提供');
       
       // 建立 JWT Token
-      const token = createUserToken(userId, member.user_id, member.access_token, member.name);
+      createUserToken(userId, member.user_id, member.access_token, member.name);
       
       // 清除用戶狀態和暫存資料，並保存會員資訊（包含個人資訊）
       updateUserState(userId, { 
