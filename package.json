@@ -1,7 +1,7 @@
 {
   "name": "medicine-delivery-line-bot",
   "version": "1.0.0",
-  "description": "中藥配藥媒合系統 LINE Bot",
+  "description": "買中藥找藥師 LINE Bot",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
