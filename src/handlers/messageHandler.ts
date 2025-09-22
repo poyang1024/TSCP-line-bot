@@ -164,17 +164,8 @@ export async function handleMessage(event: MessageEvent, client: Client): Promis
 }
 
 // 處理一般訊息（藥師諮詢等）
-async function handleGeneralMessage(event: MessageEvent, client: Client, messageText: string): Promise<void> {
-  // 簡單的關鍵字回應
-  if (messageText.includes('中藥') || messageText.includes('藥材') || messageText.includes('藥效')) {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '👨‍⚕️ 感謝您的詢問！\n\n您的問題我們已經收到，我們的專業藥師會盡快為您解答。\n\n如需更詳細的諮詢，建議您使用下方選單的「藥師諮詢」功能，我們會提供更完整的服務。'
-    });
-  } else {
-    await client.replyMessage(event.replyToken, {
-      type: 'text',
-      text: '🤖 感謝您的訊息！\n\n如果您有中藥相關問題，請使用下方選單的「藥師諮詢」功能。\n如果想要預約中藥服務，請使用「中藥預約」功能。\n\n我們將竭誠為您服務！'
-    });
-  }
+async function handleGeneralMessage(_event: MessageEvent, _client: Client, messageText: string): Promise<void> {
+  // 不自動回覆一般訊息，由 OA 後台的藥師負責回覆
+  // 避免機器人與藥師重複回覆造成使用者困擾
+  console.log(`📝 收到一般訊息: ${messageText} - 由後台藥師處理`);
 }
