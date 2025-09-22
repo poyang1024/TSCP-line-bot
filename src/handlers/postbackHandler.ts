@@ -404,7 +404,7 @@ async function handleOrderConfirmation(event: PostbackEvent, client: Client, dat
       // 根據是否有詳細訂單資料來決定回應內容
       const successMessage = {
         type: 'text' as const,
-        text: `🎉 訂單建立成功！\n\n📋 訂單編號：${order.order_code || '系統產生中'}\n🏥 配藥藥局：${order.area_name || '選定藥局'}\n🚚 取藥方式：${isDelivery ? '外送到府' : '到店自取'}\n\n藥局會盡快處理您的訂單，請耐心等候。`
+        text: `🎉 訂單建立成功！\n\n📋 訂單編號：${order.order_code || '系統產生中'}\n🏥 配藥藥局：${order.area?.name || order.area_name || '選定藥局'}\n🚚 取藥方式：${isDelivery ? '外送到府' : '到店自取'}\n\n藥局會盡快處理您的訂單，請耐心等候。`
       };
       
       // 恢復正常選單並回覆結果
@@ -468,15 +468,18 @@ async function handleContactPharmacy(event: PostbackEvent, client: Client, data:
     
     await restoreMenuFromLoading(client, userId);
 
-    if (order && order.area_phone) {
+    const pharmacyPhone = order?.area?.phone || order?.area_phone;
+    const pharmacyName = order?.area?.name || order?.area_name;
+
+    if (order && pharmacyPhone) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `📞 藥局聯絡資訊\n\n🏥 ${order.area_name}\n📞 ${order.area_phone}\n\n您可以直接撥打此電話聯絡藥局。`
+        text: `📞 藥局聯絡資訊\n\n🏥 ${pharmacyName}\n📞 ${pharmacyPhone}\n\n您可以直接撥打此電話聯絡藥局。`
       });
     } else if (order) {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: `🏥 藥局：${order.area_name}\n\n📞 很抱歉，此藥局暫無提供電話聯絡資訊。\n\n您可以直接前往藥局或查看地圖位置。`
+        text: `🏥 藥局：${pharmacyName}\n\n📞 很抱歉，此藥局暫無提供電話聯絡資訊。\n\n您可以直接前往藥局或查看地圖位置。`
       });
     } else {
       await client.replyMessage(event.replyToken, {
@@ -519,9 +522,12 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
     if (order) {
       let detailText = `📋 訂單詳情\n\n`;
       detailText += `🆔 訂單編號：${order.order_code}\n`;
-      detailText += `🏥 藥局：${order.area_name}\n`;
-      if (order.area_phone) {
-        detailText += `📞 藥局電話：${order.area_phone}\n`;
+      const pharmacyName = order.area?.name || order.area_name;
+      const pharmacyPhone = order.area?.phone || order.area_phone;
+
+      detailText += `🏥 藥局：${pharmacyName}\n`;
+      if (pharmacyPhone) {
+        detailText += `📞 藥局電話：${pharmacyPhone}\n`;
       }
       detailText += `📊 狀態：${getOrderStateText(order.state)}\n`;
       detailText += `🚚 取藥方式：${order.is_delivery ? '外送到府' : '到店自取'}\n`;

@@ -329,7 +329,7 @@ export function createOrderDetailCard(order: Order): FlexMessage {
               },
               {
                 type: 'text',
-                text: order.area_name || '選定藥局',
+                text: order.area?.name || order.area_name || '選定藥局',
                 size: 'sm',
                 flex: 5,
                 wrap: true
@@ -381,17 +381,17 @@ export function createOrderDetailCard(order: Order): FlexMessage {
 export function createOrderCarousel(orders: Order[]): Message {
   const columns = orders.map(order => ({
     title: `📋 ${order.order_code || '新訂單'}`,
-    text: `${getOrderStateText(order.state)}\n🏥 ${order.area_name || '選定藥局'}\n${order.is_delivery ? '🚚 外送' : '🏪 自取'}`,
+    text: `${getOrderStateText(order.state)}\n🏥 ${order.area?.name || order.area_name || '選定藥局'}\n${order.is_delivery ? '🚚 外送' : '🏪 自取'}`,
     actions: [
       {
         type: 'postback' as const,
         label: '查看詳情',
         data: `action=view_order_detail&order_id=${order.id || 0}`
       },
-      order.area_phone ? {
+      (order.area?.phone || order.area_phone) ? {
         type: 'uri' as const,
         label: '📞 聯絡藥局',
-        uri: `tel:${order.area_phone}`
+        uri: `tel:${order.area?.phone || order.area_phone}`
       } : {
         type: 'postback' as const,
         label: '聯絡藥局',

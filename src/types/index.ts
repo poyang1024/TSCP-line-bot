@@ -61,14 +61,22 @@ export interface OrderHistory {
   reason?: string | null;  // 狀態變更原因
 }
 
+// 藥局區域資料 (新增)
+export interface OrderArea {
+  name: string;          // 藥局名稱
+  phone: string | null;  // 藥局電話
+  address: string;       // 藥局地址
+}
+
 // 訂單資料
 export interface Order {
   id: number;
   order_code: string;
   confirmation_code?: string;
   state: number;
-  area_name: string;
-  area_phone?: string;
+  area: OrderArea;       // 新的藥局資訊結構
+  area_name: string;     // 保留舊欄位以確保向後相容
+  area_phone?: string;   // 保留舊欄位以確保向後相容
   is_delivery: boolean;
   member_name: string;
   hospital?: string;
