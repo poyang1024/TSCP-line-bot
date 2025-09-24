@@ -237,12 +237,12 @@ export function createPharmacyPaginationButtons(pharmacies: Pharmacy[], currentP
 // 訂單狀態文字
 export function getOrderStateText(state: number): string {
   switch (state) {
-    case OrderState.RECEIVED: return '📥 已收單';
-    case OrderState.SUPPLEMENT: return '📝 需補單';
     case OrderState.REJECTED: return '❌ 已拒單';
-    case OrderState.SCHEDULED: return '⏰ 已排單';
     case OrderState.CANCELLED: return '🚫 已取消';
     case OrderState.COMPLETED: return '✅ 已完成';
+    case OrderState.RESERVED: return '📅 已預約';
+    case OrderState.PROCESSING: return '⚡ 處理中';
+    case OrderState.READY: return '📦 可取貨';
     default: return '❓ 未知狀態';
   }
 }

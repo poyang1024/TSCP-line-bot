@@ -93,12 +93,12 @@ export interface Order {
 
 // 訂單狀態
 export enum OrderState {
-  RECEIVED = 0,    // 收單
-  SUPPLEMENT = 1,  // 補單
   REJECTED = 2,    // 拒單
-  SCHEDULED = 3,   // 排單
   CANCELLED = 4,   // 棄單
-  COMPLETED = 5    // 完成
+  COMPLETED = 5,   // 完成
+  RESERVED = 6,    // 已預約
+  PROCESSING = 7,  // 處理中
+  READY = 8        // 可取貨
 }
 
 // WebSocket 訊息

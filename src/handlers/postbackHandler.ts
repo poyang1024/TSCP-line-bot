@@ -603,12 +603,12 @@ async function handleViewOrderDetail(event: PostbackEvent, client: Client, data:
 
 function getOrderStateText(state: number): string {
   switch (state) {
-    case 0: return '📥 已收單';
-    case 1: return '📝 需補單';
     case 2: return '❌ 已拒單';
-    case 3: return '⏰ 已排單';
     case 4: return '🚫 已取消';
     case 5: return '✅ 已完成';
+    case 6: return '📅 已預約';
+    case 7: return '⚡ 處理中';
+    case 8: return '📦 可取貨';
     default: return '❓ 未知狀態';
   }
 }

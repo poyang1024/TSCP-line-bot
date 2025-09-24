@@ -22,23 +22,23 @@ export async function sendOrderStatusUpdate(userId: string, message: WebSocketMe
     
     // 根據不同狀態提供不同的提示訊息
     switch (message.state) {
-      case OrderState.RECEIVED:
-        notificationText += '藥局已收到您的訂單，正在處理中...';
-        break;
-      case OrderState.SUPPLEMENT:
-        notificationText += '⚠️ 藥局需要您補充資料，請查看訂單詳情或聯絡藥局。';
-        break;
       case OrderState.REJECTED:
         notificationText += '❌ 很抱歉，藥局無法處理此訂單。請查看拒絕原因或聯絡藥局。';
-        break;
-      case OrderState.SCHEDULED:
-        notificationText += '✅ 藥局已安排配藥時程，請耐心等候製作完成。';
         break;
       case OrderState.CANCELLED:
         notificationText += '🚫 訂單已取消。如有疑問請聯絡藥局。';
         break;
       case OrderState.COMPLETED:
         notificationText += '🎉 配藥完成！請依約定時間前往取藥或等候外送。';
+        break;
+      case OrderState.RESERVED:
+        notificationText += '📅 您的預約已確認，請依約定時間前往藥局。';
+        break;
+      case OrderState.PROCESSING:
+        notificationText += '⚡ 藥局正在處理您的訂單，請耐心等候...';
+        break;
+      case OrderState.READY:
+        notificationText += '📦 您的藥品已備妥，請前往藥局取藥！';
         break;
     }
     
@@ -163,24 +163,24 @@ export async function sendCompletionNotification(userId: string, orderCode: stri
 
 function getOrderStateText(state: number): string {
   switch (state) {
-    case OrderState.RECEIVED: return '已收單';
-    case OrderState.SUPPLEMENT: return '需補單';
     case OrderState.REJECTED: return '已拒單';
-    case OrderState.SCHEDULED: return '已排單';
     case OrderState.CANCELLED: return '已取消';
     case OrderState.COMPLETED: return '已完成';
+    case OrderState.RESERVED: return '已預約';
+    case OrderState.PROCESSING: return '處理中';
+    case OrderState.READY: return '可取貨';
     default: return '未知狀態';
   }
 }
 
 function getOrderStateEmoji(state: number): string {
   switch (state) {
-    case OrderState.RECEIVED: return '📥';
-    case OrderState.SUPPLEMENT: return '📝';
     case OrderState.REJECTED: return '❌';
-    case OrderState.SCHEDULED: return '⏰';
     case OrderState.CANCELLED: return '🚫';
     case OrderState.COMPLETED: return '✅';
+    case OrderState.RESERVED: return '📅';
+    case OrderState.PROCESSING: return '⚡';
+    case OrderState.READY: return '📦';
     default: return '❓';
   }
 }
