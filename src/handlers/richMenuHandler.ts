@@ -3,10 +3,9 @@ import { verifyUserToken, refreshUserToken } from '../services/jwtService'
 import { getUserState, updateUserTempData, updateUserState } from '../services/userService'
 import { updateUserRichMenu, setLoadingState, restoreMenuFromLoading } from '../services/menuManager'
 import { createLoginMenu } from './loginHandler'
-import { connectUserWebSocket, disconnectUserWebSocket, isUserConnected, getUserMemberId, ensureUserWebSocketConnection } from '../services/websocketService'
 import { getOrders } from '../services/apiService'
 import { createOrderDetailCard, createOrderCarousel } from '../templates/messageTemplates'
-import { removeUserLoginState, getUserLoginState, removeWebSocketConnection, setUserLoginState } from '../services/redisService'
+import { removeUserLoginState, getUserLoginState, setUserLoginState } from '../services/redisService'
 
 export async function handleRichMenuPostback(event: PostbackEvent, client: Client): Promise<void> {
   const userId = event.source.userId!
@@ -17,12 +16,6 @@ export async function handleRichMenuPostback(event: PostbackEvent, client: Clien
   console.log(`📱 Rich Menu action: ${action} by user: ${userId}`)
   console.log(`📱 Rich Menu postback data: ${event.postback.data}`)
   
-  // 對於會員功能，檢查並確保 WebSocket 連線
-  const memberActions = ['member_center', 'view_orders', 'create_order', 'order_history', 'pharmacist_consultation']
-  if (memberActions.includes(action || '')) {
-    console.log(`🔍 檢查用戶 ${userId} 的 WebSocket 連線狀態...`)
-    await ensureUserWebSocketConnection(userId)
-  }
   
   switch (action) {
     case 'login_required':
@@ -322,11 +315,6 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
       console.warn(`⚠️ 無法從 Redis 清除登入狀態 - ${userId}`);
     }
     
-    // 清除 Redis 中的 WebSocket 連線狀態
-    const wsRemoved = await removeWebSocketConnection(userId);
-    if (wsRemoved) {
-      console.log(`✅ 已從 Redis 清除 WebSocket 連線狀態 - ${userId}`);
-    }
     
     // 清除暫存資料
     updateUserTempData(userId, undefined);
@@ -340,10 +328,6 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
       memberName: undefined,
     });
     
-    // 斷開 WebSocket 連線
-    if (loginState) {
-      await disconnectUserWebSocket(loginState.memberId);
-    }
     
     // 切換回訪客選單
     await updateUserRichMenu(client, userId, false);
@@ -357,7 +341,6 @@ async function handleLogout(event: PostbackEvent, client: Client, userId: string
     
     // 即使發生錯誤也要確保用戶狀態被清除
     await removeUserLoginState(userId);
-    await removeWebSocketConnection(userId);
     updateUserTempData(userId, undefined);
     updateUserState(userId, { 
       currentStep: undefined, 

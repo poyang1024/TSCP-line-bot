@@ -6,11 +6,10 @@ import cookieParser from 'cookie-parser';
 import { handleMessage } from './handlers/messageHandler';
 import { handlePostback } from './handlers/postbackHandler';
 import { handleFollow } from './handlers/followHandler';
-import { initWebSocket } from './services/websocketService';
 import { setupRoutes } from './routes';
 import { initializeRichMenus } from './services/menuManager';
 import authRoutes from './routes/authRoutes';
-import { initRedis, checkNewDeployment, clearAllLoginStates, clearAllWebSocketConnections } from './services/redisService';
+import { initRedis, checkNewDeployment, clearAllLoginStates } from './services/redisService';
 
 dotenv.config();
 
@@ -289,17 +288,13 @@ async function initializeServices() {
       console.log('🚀 檢測到新部署，清除所有用戶登入狀態...');
       
       const clearedLogins = await clearAllLoginStates();
-      const clearedConnections = await clearAllWebSocketConnections();
-      
+
       console.log(`✅ 已清除 ${clearedLogins} 個登入狀態`);
-      console.log(`✅ 已清除 ${clearedConnections} 個 WebSocket 連線`);
       console.log('📢 所有用戶將需要重新登入');
     } else {
       console.log('♻️ 應用重啟，保持現有登入狀態');
     }
     
-    // 初始化 WebSocket 連線
-    initWebSocket();
     
     // 初始化圖文選單（僅在開發環境）
     if (process.env.NODE_ENV !== 'production') {

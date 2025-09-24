@@ -3,7 +3,6 @@ import { Client } from '@line/bot-sdk';
 import { loginMember, registerMember, changePassword, deleteAccount } from '../services/apiService';
 import { updateUserState, getUserState } from '../services/userService';
 import { createUserToken } from '../services/jwtService';
-import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { updateUserRichMenu } from '../services/menuManager';
 import { setUserLoginState, removeUserLoginState } from '../services/redisService';
 
@@ -58,8 +57,6 @@ export async function handleWebLogin(req: Request, res: Response, client: Client
         console.error(`⚠️ Rich Menu 更新失敗，但不影響登入:`, menuError);
       }
       
-      // 建立 WebSocket 連線
-      await connectUserWebSocket(lineUserId, member.user_id, member.access_token);
       
       // 發送登入成功通知到 LINE
       try {
@@ -222,8 +219,6 @@ export async function handleWebChangePassword(req: Request, res: Response, clien
         memberName: undefined
       });
       
-      // 斷開 WebSocket 連線
-      disconnectUserWebSocket(lineUserId);
       
       // 切換回訪客選單
       try {
@@ -304,8 +299,6 @@ export async function handleWebDeleteAccount(req: Request, res: Response, client
         memberName: undefined
       });
       
-      // 斷開 WebSocket 連線
-      disconnectUserWebSocket(lineUserId);
       
       // 切換回訪客選單
       try {

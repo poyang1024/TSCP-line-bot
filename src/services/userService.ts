@@ -1,5 +1,4 @@
 import { UserState } from '../types';
-import { disconnectUserWebSocket } from './websocketService';
 import { verifyUserToken, JWTPayload } from './jwtService';
 
 // 簡單的記憶體儲存，主要用於暫存資料

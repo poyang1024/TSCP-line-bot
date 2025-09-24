@@ -1,7 +1,6 @@
 import { MessageEvent, PostbackEvent, Client, TextMessage, FlexMessage } from '@line/bot-sdk';
 import { getUserState, ensureUserState, updateUserState } from '../services/userService';
 import { loginMember, changePassword } from '../services/apiService';
-import { connectUserWebSocket, disconnectUserWebSocket } from '../services/websocketService';
 import { createUserToken } from '../services/jwtService';
 import { updateUserRichMenu } from '../services/menuManager';
 
@@ -313,8 +312,6 @@ async function performLogin(
         console.error(`⚠️ Rich Menu 更新失敗，但不影響登入:`, menuError);
       }
       
-      // 建立 WebSocket 連線
-      await connectUserWebSocket(userId, member.user_id, member.access_token);
       
       // 發送簡化的登入成功訊息
       const successMessage = {
@@ -477,10 +474,6 @@ async function performPasswordChange(
         memberName: undefined
       });
       
-      // 斷開 WebSocket 連線
-      if (memberId) {
-        disconnectUserWebSocket(memberId);
-      }
       
       // 切換回訪客選單
       try {
