@@ -17,10 +17,11 @@
 ### 🔧 登出功能詳情
 
 #### 登出時會執行以下操作：
-1. **清除用戶狀態** - 從記憶體中移除所有用戶資料
-2. **斷開 WebSocket 連線** - 停止接收即時通知
-3. **顯示登出成功訊息** - 確認登出完成
-4. **顯示登入提示** - 引導用戶重新登入
+1. **清除 Redis 登入狀態** - 移除持久化的登入資料
+2. **清除記憶體狀態** - 移除暫存的用戶資料
+3. **清除 JWT Cookie** - 移除客戶端的認證 token
+4. **切換到訪客選單** - 自動切換 Rich Menu
+5. **顯示登出成功訊息** - 確認登出完成
 
 #### 狀態檢查：
 - ✅ **已登入用戶**：執行完整登出流程ㄦ
@@ -33,7 +34,7 @@
      ↓
 檢查登入狀態
      ↓
-[已登入] → 清除狀態 → 斷開連線 → 顯示成功訊息 → 登入提示
+[已登入] → 清除 Redis 狀態 → 清除記憶體 → 清除 JWT → 切換選單 → 顯示成功訊息
 [未登入] → 顯示「無需登出」訊息
 ```
 
@@ -47,8 +48,9 @@
 
 ### 🔒 安全性
 
-- 登出時會自動斷開所有相關連線
+- 登出時會清除 Redis 中的登入狀態（跨實例生效）
 - 清除記憶體中的敏感資料（memberId, accessToken）
+- 清除 JWT Cookie 防止重複使用
 - 防止未登入用戶的無效操作
 
 ### 🧪 測試建議
@@ -79,9 +81,11 @@
 ```
 messageHandler.handleMessage()
     ↓
-userService.clearUserState()
+redisService.deleteUserLoginState()  // 清除 Redis
     ↓
-websocketService.disconnectUserWebSocket()
+userService.clearUserState()         // 清除記憶體
+    ↓
+menuManager.switchToGuestMenu()      // 切換選單
 ```
 
 現在用戶可以隨時安全地登出系統！🎉

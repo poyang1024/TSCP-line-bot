@@ -2,28 +2,31 @@
 
 ## 功能特色
 
-✅ **Flex Message 選單式登入** - 提供視覺化的登入選項選單  
 ✅ **帳號密碼登入** - 支援傳統帳號密碼登入方式  
-✅ **保留 LINE 官方登入** - 為後續整合 LINE Login 預留接口  
-✅ **優化用戶體驗** - 使用 emoji 和清楚的引導文字  
+✅ **優化用戶體驗** - 使用 emoji 和清楚的引導文字
+✅ **JWT + Redis** - 混合式狀態管理，適合 Serverless 環境
 
 ## 登入流程
 
 ### 1. 觸發登入
-用戶輸入 `登入` 或 `會員登入` 時，系統會顯示登入選單
+用戶輸入 `登入` 或 `會員登入` 時，系統會提示輸入帳號
 
-### 2. 登入選單選項
--  **帳號密碼登入** - 使用傳統帳號 + 密碼
-- 📲 **LINE 官方登入** - 預留功能（目前連結到 line.me）
+### 2. 登入方式
+- 🔑 **帳號密碼登入** - 唯一支援的登入方式
 
 ### 3. 登入步驟
 
 #### 帳號密碼登入
-1. 用戶點選「🔑 帳號密碼登入」
+1. 用戶輸入「登入」
 2. 系統提示：「🔑 請輸入您的帳號：」
 3. 用戶輸入帳號
 4. 系統提示：「🔐 請輸入您的密碼：」
-5. 用戶輸入密碼，完成登入
+5. 用戶輸入密碼
+6. 系統驗證成功後：
+   - 產生 JWT Token
+   - 儲存登入狀態到 Redis (7 天過期)
+   - 切換到會員 Rich Menu
+   - 顯示登入成功訊息
 
 ## 技術實作
 
@@ -62,42 +65,38 @@ src/
 - 呼叫後端 API 進行身份驗證
 - 處理登入成功/失敗的回應
 
-### UserState 型別更新
+### UserState 型別
 ```typescript
 interface UserState {
   userId: string;
   memberId?: number;
   accessToken?: string;
   currentStep?: string;
-  loginMethod?: 'account' | 'line';  // 簡化
+  loginMethod?: 'account';  // 僅支援帳號密碼
   tempData?: any;
 }
 ```
 
-### 預留功能
-
-#### LINE Login 整合
+### Redis 登入狀態儲存
 ```typescript
-function generateLineLoginUrl(userId: string, state?: string): string {
-  // OAuth 2.0 登入 URL 產生
-  // 需要設定 LINE_CHANNEL_ID 和 LINE_LOGIN_REDIRECT_URI
+// 儲存格式
+{
+  "memberId": 123,
+  "accessToken": "token_string",
+  "memberName": "用戶名稱",
+  "loginTime": 1694678400000
 }
+
+// 過期時間：7 天 (與 JWT 一致)
 ```
 
 ## 錯誤處理
 
-- ✅ 登入失敗處理（重新顯示登入選單）
+- ✅ 登入失敗處理（顯示錯誤訊息並重試）
 - ✅ 系統錯誤處理
 - ✅ 無效輸入處理
-
-## 後續擴展
-
-1. **LINE Login 整合**
-   - 設定 LINE Login Channel
-   - 實作 OAuth 回調處理
-   - 整合 LINE 用戶資料
-
-2. **生物辨識登入**
+- ✅ JWT Token 過期自動清除
+- ✅ Redis 連線失敗容錯處理
    - 指紋/Face ID 整合
    - 安全性增強
 
