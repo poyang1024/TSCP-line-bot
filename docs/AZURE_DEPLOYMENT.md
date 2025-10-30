@@ -14,6 +14,7 @@
 | **請求限制** | 30 秒（Hobby）/ 60 秒（Pro） | 預設 5 分鐘（可調整到 10 分鐘）|
 | **狀態管理** | 無狀態（每次請求可能不同實例） | 無狀態（每次請求可能不同實例） |
 | **檔案系統** | 唯讀（/tmp 可寫） | /tmp 可寫 |
+| **靜態文件** | `express.static` 直接支援 | 需要配置 proxy 或使用 Blob Storage |
 | **環境變數** | Vercel Dashboard | Azure Portal / CLI |
 | **部署方式** | Git 推送自動部署 | CLI / Git / CI/CD |
 | **免費額度** | Hobby 方案限制 | 每月 100 萬次請求免費 |
@@ -126,7 +127,133 @@ console.log('🔖 Git Commit:', gitCommit.substring(0, 8));
 
 ---
 
-### 4. 檔案上傳處理（可選優化）
+### 4. 靜態文件處理（重要！）
+
+#### 問題：Azure Functions 不直接支援 `express.static`
+
+目前程式碼中使用 `express.static('public')` 來服務 `login.html`，這在 Azure Functions 上需要特別處理。
+
+#### 方案 1: 使用 Azure Static Web Apps（推薦）
+
+**為什麼推薦：**
+- ✅ 免費（每月 100GB 頻寬）
+- ✅ 自動 CDN 加速
+- ✅ 與 Functions 無縫整合
+- ✅ 支援自定義域名
+
+**部署步驟：**
+
+1. **創建 Static Web App**
+```bash
+az staticwebapp create \
+  --name tscp-linebot-static \
+  --resource-group tscp-linebot-rg \
+  --source https://github.com/your-repo \
+  --location eastasia \
+  --branch main \
+  --app-location "public" \
+  --api-location "api"
+```
+
+2. **配置檔案：`staticwebapp.config.json`**
+```json
+{
+  "routes": [
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous"]
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/login.html"
+  }
+}
+```
+
+3. **訪問方式：**
+- 靜態頁面：`https://tscp-linebot-static.azurestaticapps.net/login`
+- API：`https://tscp-linebot-static.azurestaticapps.net/api/webhook`
+
+**優點：靜態文件和 API 在同一個域名下，無需 CORS 設定**
+
+---
+
+#### 方案 2: 在 Functions 中直接返回 HTML（簡單）
+
+**修改 `src/routes/index.ts`：**
+
+```typescript
+import fs from 'fs';
+import path from 'path';
+
+// 讀取 HTML 文件內容（啟動時讀取一次）
+const loginHtml = fs.readFileSync(
+  path.join(__dirname, '../../public/login.html'), 
+  'utf-8'
+);
+
+// 網頁登入頁面
+app.get('/login', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(loginHtml);
+});
+```
+
+**優點：**
+- ✅ 不需要額外服務
+- ✅ 簡單直接
+
+**缺點：**
+- ⚠️ 靜態資源（CSS、JS、圖片）需要用 CDN 或 inline
+- ⚠️ 每次請求都會經過 Function
+
+---
+
+#### 方案 3: Azure Blob Storage + CDN
+
+**適合：大量靜態文件**
+
+```bash
+# 創建儲存帳戶
+az storage account create \
+  --name tscpstatic \
+  --resource-group tscp-linebot-rg \
+  --sku Standard_LRS
+
+# 啟用靜態網站
+az storage blob service-properties update \
+  --account-name tscpstatic \
+  --static-website \
+  --index-document login.html
+
+# 上傳文件
+az storage blob upload-batch \
+  --account-name tscpstatic \
+  --source public \
+  --destination '$web'
+```
+
+**訪問：** `https://tscpstatic.z7.web.core.windows.net/login.html`
+
+---
+
+#### 推薦方案比較
+
+| 方案 | 成本 | 複雜度 | 效能 | 推薦度 |
+|------|------|--------|------|--------|
+| Static Web Apps | 免費 | 中 | 最佳（CDN） | ⭐⭐⭐⭐⭐ |
+| Functions 直接返回 | 免費 | 低 | 一般 | ⭐⭐⭐ |
+| Blob + CDN | ~$1/月 | 高 | 很好 | ⭐⭐⭐⭐ |
+
+**建議：使用 Azure Static Web Apps**
+
+---
+
+### 5. 檔案上傳處理（可選優化）
 
 #### 檔案：`src/handlers/uploadHandler.ts`
 
@@ -138,7 +265,7 @@ const uploadDir = '/tmp/uploads';
 
 **Azure 改進選項**:
 
-**選項 1: 使用 /tmp（Functions 和 App Service 都支援）**
+**選項 1: 使用 /tmp（Functions 支援）**
 ```typescript
 // 保持現狀，適用所有環境
 const uploadDir = '/tmp/uploads';
@@ -245,6 +372,8 @@ az functionapp config appsettings set \
 
 #### 5. 準備專案結構
 
+**注意：如果使用 Azure Static Web Apps，可以跳過這步，直接看下面的 Static Web Apps 部署**
+
 在專案根目錄創建 `host.json`:
 ```json
 {
@@ -335,6 +464,97 @@ https://tscp-linebot.azurewebsites.net/webhook
    ```
 4. 點擊「Verify」驗證連線
 5. 啟用「Use webhook」
+
+---
+
+## 🌐 處理靜態文件（login.html）
+
+### 問題說明
+目前 `login.html` 通過 `express.static('public')` 提供服務，在 Azure Functions 上需要特別處理。
+
+### 推薦方案：Azure Static Web Apps + Functions
+
+這是最佳解決方案，可以免費托管靜態文件並與 Functions 整合。
+
+#### 1. 創建 Static Web App
+```bash
+az staticwebapp create \
+  --name tscp-linebot-web \
+  --resource-group tscp-linebot-rg \
+  --location eastasia \
+  --sku Free
+```
+
+#### 2. 在專案根目錄創建 `staticwebapp.config.json`
+```json
+{
+  "routes": [
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/login.html",
+    "exclude": ["/api/*"]
+  }
+}
+```
+
+#### 3. 連結 GitHub（自動部署）
+在 Azure Portal:
+1. 前往 Static Web App → Deployment
+2. 選擇 GitHub
+3. 授權並選擇 repository
+4. 設定：
+   - Branch: `main`
+   - App location: `public`
+   - API location: 留空（使用獨立的 Functions App）
+
+#### 4. 更新 LINE Bot 使用 Static Web App URL
+```typescript
+// src/handlers/richMenuHandler.ts
+// 將登入 URL 改為 Static Web App
+uri: `https://tscp-linebot-web.azurestaticapps.net/login?userId=${userId}`
+```
+
+#### 5. 最終架構
+```
+https://tscp-linebot-web.azurestaticapps.net/login  ← 靜態頁面
+https://tscp-linebot.azurewebsites.net/webhook      ← Functions API
+```
+
+**優點：**
+- ✅ 完全免費（靜態托管 + Functions 免費額度）
+- ✅ CDN 加速
+- ✅ 自動 HTTPS
+- ✅ GitHub 自動部署
+
+### 替代方案：Functions 直接返回 HTML（簡單但不推薦）
+
+如果不想用 Static Web Apps，可以修改程式碼：
+
+```typescript
+// src/routes/index.ts
+import fs from 'fs';
+import path from 'path';
+
+// 啟動時讀取 HTML 內容
+const loginHtml = fs.readFileSync(
+  path.join(__dirname, '../../public/login.html'), 
+  'utf-8'
+);
+
+app.get('/login', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(loginHtml);
+});
+```
+
+**缺點：**
+- 每次請求都消耗 Function 執行時間
+- 無 CDN 加速
+- 如果 HTML 中有 CSS/JS/圖片，需要 inline 或用外部 CDN
 
 ---
 
