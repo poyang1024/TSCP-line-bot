@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { handleMessage } from './handlers/messageHandler';
 import { handlePostback } from './handlers/postbackHandler';
-import { handleFollow } from './handlers/followHandler';
 import { setupRoutes } from './routes';
 import { initializeRichMenus } from './services/menuManager';
 import authRoutes from './routes/authRoutes';
@@ -214,11 +213,8 @@ async function handleEvent(event: WebhookEvent): Promise<{ success: boolean; eve
       result = await handleMessage(event as MessageEvent, client);
     } else if (event.type === 'postback') {
       result = await handlePostback(event as PostbackEvent, client);
-    } else if (event.type === 'follow') {
-      await handleFollow(event as any, client);
-      result = { success: true, eventType: 'follow', action: 'user_followed' };
     } else {
-      // 其他類型的事件（如 unfollow 等）
+      // 其他類型的事件（如 follow, unfollow 等）
       console.log(`📝 未處理的事件類型: ${event.type}`);
       result = { success: true, eventType: event.type, action: 'unhandled' };
     }
